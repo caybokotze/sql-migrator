@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	sqlNew := flag.Bool("sql-new", false, "flag that set's whether a new sql migration needs to be created.")
+	sqlNew := flag.Bool("sql-new", true, "flag that set's whether a new sql migration needs to be created.")
 	sqlUp := flag.Bool("sql-up", true, "flag that is set to define whether existing migrations should be run.")
 
 	//sql_user := flag.String("sql_user", "sqltracking", "the sql user that needs to be used to execute migrations")
@@ -58,7 +58,7 @@ func createNewMigration() {
 		text, _ := reader.ReadString('\n')
 		text = strings.Replace(text, "\n", "", -1)
 
-		if strings.Compare("hi", text) == 0 {
+		if "hi" == text {
 			fmt.Println("hello yourself.")
 		}
 	}

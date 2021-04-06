@@ -1,3 +1,3 @@
-module mysqlmigrator/m/v2
+module github.com/caybokotze/mysql-migrator
 
 go 1.16

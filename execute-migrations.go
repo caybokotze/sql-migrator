@@ -24,16 +24,33 @@ func runMigrations(
 		sqlPort,
 		sqlDatabase)
 
-	var excludedMigrations []Schema = findExcludedMigrations()
+	//var excludedMigrations = findExcludedMigrations()
 }
 
 func findExcludedMigrations() []Schema {
 	executedMigrations := getAllDbMigrations()
 	allFileMigrations := getArrayOfMigrationFiles()
 
+	m := make(map[Schema]int64)
+	for _, k := range executedMigrations {
+		m[k] |= 1 << 0
+	}
+	for _, k := range allFileMigrations {
+		m[k] |= 1 << 0
+	}
+	var result []Schema
+	for k, v := range m {
+		a := v&(1<<0) != 0
+		b := v&(1<<1) != 0
+		switch {
+			case !a && b:
+				result = append(result, k)
+		}
+	}
 
 	return allFileMigrations
 }
+
 
 func getArrayOfMigrationFiles() []Schema {
 	items, _ := ioutil.ReadDir("./scripts/")

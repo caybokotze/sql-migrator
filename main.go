@@ -1,11 +1,9 @@
 package main
 
 import (
-	"database/sql"
 	"flag"
 	"fmt"
 	"github.com/gookit/color"
-	"log"
 	"os"
 	"time"
 )
@@ -22,11 +20,14 @@ func main() {
 	if os.Getenv("DRY_RUN") != "" {
 		envDryRun = true
 	}
+
 	dryRun := flag.Bool("dry-run", envDryRun, "use the dry-run flag if you want to execute all migrations within a transaction scope so that changes are not persisted")
 	envAutoByPass := false
+
 	if os.Getenv("AUTO_BYPASS") != "" {
 		envAutoByPass = true
 	}
+
 	autoByPass := flag.Bool("auto-bypass", envAutoByPass, "use this flag if you want to continue executing migrations even if one or more fail to execute")
 
 	flag.Parse()
@@ -34,11 +35,9 @@ func main() {
 	if *sqlPort == "" {
 		*sqlPort = "3306"
 	}
-
 	if *sqlHost == "" {
 		*sqlHost = "127.0.0.1"
 	}
-
 	if *sqlNew == false && *sqlUp == false {
 		color.Red.Println("You didn't supply any arguments... Please try again, use -h for help.")
 		os.Exit(1)
@@ -52,20 +51,26 @@ func main() {
 		os.Exit(0)
 	}
 	if *sqlUp == true {
-		if *sqlUser == "" || *sqlPassword == "" || *sqlDatabase == "" {
+		if *sqlUser == "" ||
+			*sqlPassword == "" ||
+			*sqlDatabase == "" {
+
 			color.Red.Println("You are required to provide a sql user, password and database name, either as a argument or environment variable")
 			fmt.Println(`e.g: mysql-migrator -sql-up -sql-database="doggy_db" -sql-user="doggo" -sql-password="le-woof"`)
 			os.Exit(1)
 		}
-		runMigrations()
+
+		runMigrations(
+			*sqlUser,
+			*sqlPassword,
+			*sqlHost,
+			*sqlPort,
+			*sqlDatabase,
+			*dryRun,
+			*autoByPass)
+
 		os.Exit(0)
 	}
-}
-
-
-
-func getTimestampAsString() string {
-	return time.Now().Format("20060102150405")
 }
 
 type Schema struct {
@@ -74,58 +79,3 @@ type Schema struct {
 	dateexecuted time.Time
 }
 
-func runMigrations() {
-
-}
-
-func getAllMigrations() {
-	db, err := sql.Open("mysql", "root:pass1@tcp(127.0.0.1:3306)/tuts")
-
-	if err != nil {
-		log.Print(err.Error())
-	}
-
-	defer db.Close()
-
-	results, err := db.Query("SELECT `id`, `name`, `dateexecuted` FROM `schemaversion`")
-
-	if err != nil {
-		panic(err.Error())
-	}
-
-	for results.Next() {
-		var schema Schema
-
-		err = results.Scan(&schema.id, &schema.name)
-		if err != nil {
-			panic(err.Error())
-		}
-
-		log.Printf(schema.name)
-	}
-}
-
-func createSchemaVersionTable(dbUser string, dbPassword string, ipAddress string, port string) {
-	const createSchemaVersion = `CREATE TABLE IF NOT EXISTS schemaversion (
-	id BIGINT NOT NULL AUTO_INCREMENT,
-	name VARCHAR(512) NULL,
-	date_executed DATETIME DEFAULT CURRENT_TIMESTAMP,
-	PRIMARY KEY (id));`
-
-	db, err := sql.Open("mysql",
-		fmt.Sprintf("%s:%s@tcp(%s:%s)", dbUser, dbPassword, ipAddress, port))
-
-	if err != nil {
-		panic(err.Error())
-	}
-
-	defer db.Close()
-
-	insert, err := db.Query(createSchemaVersion)
-
-	if err != nil {
-		panic(err.Error())
-	}
-
-	defer insert.Close()
-}

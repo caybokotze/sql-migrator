@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"regexp"
+	"time"
 )
 
 func createNewMigration() {
@@ -23,4 +24,8 @@ func createNewMigration() {
 	if err != nil {
 		fmt.Printf("Unable to write file: %v\n", err)
 	}
+}
+
+func getTimestampAsString() string {
+	return time.Now().Format("20060102150405")
 }

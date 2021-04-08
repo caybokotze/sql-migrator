@@ -1,15 +1,12 @@
 package main
 
 import (
-	"bufio"
 	"database/sql"
 	"flag"
 	"fmt"
 	"github.com/gookit/color"
-	"io/ioutil"
 	"log"
 	"os"
-	"regexp"
 	"time"
 )
 
@@ -62,22 +59,7 @@ func main() {
 	}
 }
 
-func createNewMigration() {
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Println("Create a new name for a migration: ")
-	fmt.Println("-> ")
-	text, _ := reader.ReadString('\n')
-	re := regexp.MustCompile(`\r?\n`)
-	text = re.ReplaceAllString(text, "")
-	scriptName := getTimestampAsString() + "-" + text
-	upScript := scriptName + "_up"
-	downScript := scriptName + "_down"
-	err := ioutil.WriteFile("./scripts/" +upScript+ ".sql", []byte(""), 0755)
-	_ = ioutil.WriteFile("./scripts/"+downScript+".sql", []byte(""), 0755)
-	if err != nil {
-		fmt.Printf("Unable to write file: %v\n", err)
-	}
-}
+
 
 func getTimestampAsString() string {
 	return time.Now().Format("20060102150405")
@@ -121,7 +103,7 @@ func getAllMigrations() {
 }
 
 func createSchemaVersionTable(dbUser string, dbPassword string, ipAddress string, port string) {
-	const createSchemaversion = `CREATE TABLE IF NOT EXISTS schemaversion (
+	const createSchemaVersion = `CREATE TABLE IF NOT EXISTS schemaversion (
 	id BIGINT NOT NULL AUTO_INCREMENT,
 	name VARCHAR(512) NULL,
 	date_executed DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -136,15 +118,11 @@ func createSchemaVersionTable(dbUser string, dbPassword string, ipAddress string
 
 	defer db.Close()
 
-	insert, err := db.Query(createSchemaversion)
+	insert, err := db.Query(createSchemaVersion)
 
 	if err != nil {
 		panic(err.Error())
 	}
 
 	defer insert.Close()
-}
-
-func doDoubleStuff() {
-	time.Sleep(2000)
 }

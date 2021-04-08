@@ -18,23 +18,26 @@ func main() {
 	sqlPort := flag.String("sql-port", os.Getenv("SQL_PORT"), "the sql port that is required to open a db connection")
 	sqlHost := flag.String("sql-host", os.Getenv("SQL_HOST"), "the sql host that is required to open a db connection")
 	sqlDatabase := flag.String("sql-database", os.Getenv("SQL_DATABASE"), "the targeted database that is required to open a db connection")
+	envDryRun := false
+	if os.Getenv("DRY_RUN") != "" {
+		envDryRun = true
+	}
+	dryRun := flag.Bool("dry-run", envDryRun, "use the dry-run flag if you want to execute all migrations within a transaction scope so that changes are not persisted")
+	envAutoByPass := false
+	if os.Getenv("AUTO_BYPASS") != "" {
+		envAutoByPass = true
+	}
+	autoByPass := flag.Bool("auto-bypass", envAutoByPass, "use this flag if you want to continue executing migrations even if one or more fail to execute")
 
 	flag.Parse()
 
-	if sqlPort == nil {
+	if *sqlPort == "" {
 		*sqlPort = "3306"
 	}
 
-	if sqlHost == nil {
+	if *sqlHost == "" {
 		*sqlHost = "127.0.0.1"
 	}
-
-	//database := os.Getenv("SQL_DATABASE")
-	//dryRun := os.Getenv("DRY_RUN")
-	//mode := os.Getenv("MODE")
-	//port := os.Getenv("SQL_PORT")
-	//autoByPass := os.Getenv("AUTO_BYPASS")
-	//currentDate := time.Now()
 
 	if *sqlNew == false && *sqlUp == false {
 		color.Red.Println("You didn't supply any arguments... Please try again, use -h for help.")

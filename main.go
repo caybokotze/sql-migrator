@@ -9,6 +9,10 @@ import (
 )
 
 func main() {
+	Initialise()
+}
+
+func Initialise() {
 	sqlNew := flag.Bool("sql-new", false, "flag that set's whether a new sql migration needs to be created.")
 	sqlUp := flag.Bool("sql-up", false, "flag that is set to define whether existing migrations should be run.")
 	sqlUser := flag.String("sql-user", os.Getenv("SQL_USER"), "the sql user that needs to be used to execute migrations")
@@ -20,14 +24,11 @@ func main() {
 	if os.Getenv("DRY_RUN") != "" {
 		envDryRun = true
 	}
-
 	dryRun := flag.Bool("dry-run", envDryRun, "use the dry-run flag if you want to execute all migrations within a transaction scope so that changes are not persisted")
 	envAutoByPass := false
-
 	if os.Getenv("AUTO_BYPASS") != "" {
 		envAutoByPass = true
 	}
-
 	autoByPass := flag.Bool("auto-bypass", envAutoByPass, "use this flag if you want to continue executing migrations even if one or more fail to execute")
 
 	flag.Parse()

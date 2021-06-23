@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	_ "github.com/go-sql-driver/mysql"
 	"io/ioutil"
 	"log"
 	"time"
@@ -64,7 +65,7 @@ func getArrayOfMigrationFiles() []Schema {
 func getSchemaFromFileName(fileName string) Schema {
 	return Schema{
 		id:           0,
-		name:         "",
+		name:         fileName,
 		dateexecuted: time.Now(),
 	}
 }
@@ -102,7 +103,7 @@ func createSchemaVersionTable(
 }
 
 func getAllDbMigrations() []Schema {
-	db, err := sql.Open("mysql", "root:pass1@tcp(127.0.0.1:3306)/tuts")
+	db, err := sql.Open("mysql", "sqltracking:sqltracking@tcp(127.0.0.1:3306)/demodb")
 
 	if err != nil {
 		log.Print(err.Error())
@@ -116,23 +117,27 @@ func getAllDbMigrations() []Schema {
 		panic(err.Error())
 	}
 
+	var schemas []Schema
+
 	for results.Next() {
 		var schema Schema
-
-		err = results.Scan(&schema.id, &schema.name)
+		var dateExecuted rawTime
+		err = results.Scan(&schema.id, &schema.name, &dateExecuted)
 		if err != nil {
 			panic(err.Error())
 		}
-
-		log.Printf(schema.name)
-	}
-
-	var schemas = []Schema {
-		{
-			id:           0,
-			name:         "",
-			dateexecuted: time.Now(),
-		},
+		expectedTime, err := dateExecuted.Parse()
+		if err != nil {
+			panic(err.Error())
+		}
+		schema.dateexecuted = expectedTime
+		schemas = append(schemas, schema)
 	}
 	return schemas
+}
+
+type rawTime []byte
+
+func (t rawTime) Parse() (time.Time, error) {
+	return time.Parse("2006-01-02 15:04:05", string(t))
 }

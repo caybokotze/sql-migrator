@@ -1,0 +1,9 @@
+INSERT INTO roles (id, role_name) VALUES (1, "GlobalAdmin");
+INSERT INTO roles (id, role_name) VALUES (2, "LocalAdmin");
+INSERT INTO roles (id, role_name) VALUES (3, "Manager");
+INSERT INTO roles (id, role_name) VALUES (4, "Operations");
+INSERT INTO roles (id, role_name) VALUES (5, "Driver");
+INSERT INTO roles (id, role_name) VALUES (6, "Accountant");
+INSERT INTO roles (id, role_name) VALUES (7, "General");
+INSERT INTO roles (id, role_name) VALUES (8, "Support");
+INSERT INTO roles (id, role_name) VALUES (9, "Unassigned");

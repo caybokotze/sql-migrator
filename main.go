@@ -9,7 +9,22 @@ import (
 )
 
 func main() {
-	Initialise()
+	//Initialise()
+	printOutMigrationsForDb()
+}
+
+func printOutMigrations() {
+	var migrationFiles = getArrayOfMigrationFiles()
+	for _, s := range migrationFiles {
+		fmt.Println(s.name)
+	}
+}
+
+func printOutMigrationsForDb() {
+	var migrationFiles = getAllDbMigrations()
+	for _, s := range migrationFiles {
+		fmt.Println(s.name)
+	}
 }
 
 func Initialise() {

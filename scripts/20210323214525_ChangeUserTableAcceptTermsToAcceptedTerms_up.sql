@@ -1,0 +1,1 @@
+ALTER TABLE users CHANGE accept_terms accepted_terms tinyint(1);

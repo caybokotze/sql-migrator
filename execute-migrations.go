@@ -61,18 +61,35 @@ func getArrayOfMigrationFiles() []Schema {
 	for _, item := range items {
 		schemas = append(schemas, getSchemaFromFileName(item.Name()))
 	}
+	schemas = removeDuplicateSchemas(schemas)
 	return schemas
+}
+
+func removeDuplicateSchemas(sample []Schema) []Schema {
+	var unique []Schema
+	primaryLoop:
+	for _, v := range sample {
+		for i, u := range unique {
+			if v.id == u.id {
+				unique[i] = v
+				continue primaryLoop
+			}
+		}
+		unique = append(unique, v)
+	}
+	return unique
 }
 
 func getSchemaFromFileName(fileName string) Schema {
 	s := strings.Split(fileName, "_")
 	id, err := strconv.ParseInt(s[0], 0, 64)
+	name := s[1]
 	if err != nil {
-		panic("id can not be converted to integer")
+		panic("id in file string can not be converted to integer")
 	}
 	return Schema{
 		id:           id,
-		name:         fileName,
+		name:         name,
 		dateexecuted: time.Now(),
 	}
 }

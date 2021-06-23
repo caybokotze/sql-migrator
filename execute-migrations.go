@@ -6,6 +6,8 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"io/ioutil"
 	"log"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -63,8 +65,13 @@ func getArrayOfMigrationFiles() []Schema {
 }
 
 func getSchemaFromFileName(fileName string) Schema {
+	s := strings.Split(fileName, "_")
+	id, err := strconv.ParseInt(s[0], 0, 64)
+	if err != nil {
+		panic("id can not be converted to integer")
+	}
 	return Schema{
-		id:           0,
+		id:           id,
 		name:         fileName,
 		dateexecuted: time.Now(),
 	}
@@ -128,7 +135,7 @@ func getAllDbMigrations() []Schema {
 		}
 		expectedTime, err := dateExecuted.Parse()
 		if err != nil {
-			panic(err.Error())
+			panic("The datetime was in an unexpected format. expected: YYYY-MM-DD hh:mm:ss")
 		}
 		schema.dateexecuted = expectedTime
 		schemas = append(schemas, schema)

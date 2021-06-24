@@ -10,7 +10,8 @@ import (
 
 func main() {
 	//Initialise()
-	printOutMigrationsForDb()
+	//printOutMigrations()
+	//printOutMigrationsForDb()
 }
 
 func printOutMigrations() {

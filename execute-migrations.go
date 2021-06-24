@@ -20,6 +20,14 @@ func runMigrations(
 	dryRun bool,
 	autoByPass bool) {
 
+	databaseDetails := DatabaseDetails{
+		sqlUser: sqlUser,
+		sqlPassword: sqlPassword,
+		sqlHost: sqlHost,
+		sqlPort: sqlPort,
+		sqlDatabase: sqlDatabase,
+	}
+
 	createSchemaVersionTable(
 		sqlUser,
 		sqlPassword,
@@ -27,12 +35,24 @@ func runMigrations(
 		sqlPort,
 		sqlDatabase)
 
+	migrations := findMigrationToExecute()
+
 	//var excludedMigrations = findExcludedMigrations()
 }
 
+type DatabaseDetails struct {
+	sqlUser string
+	sqlPassword string
+	sqlHost string
+	sqlPort string
+	sqlDatabase string
+}
+
+// this could be more efficient than the findUniqueMigrations method, but still needs work.
 func findExcludedMigrations() []Schema {
 	executedMigrations := getAllDbMigrations()
 	allFileMigrations := getArrayOfMigrationFiles()
+	//lastMigrationRun := executedMigrations[len(executedMigrations)-1]
 
 	m := make(map[Schema]int64)
 	for _, k := range executedMigrations {
@@ -54,6 +74,14 @@ func findExcludedMigrations() []Schema {
 	return allFileMigrations
 }
 
+func findMigrationToExecute(details DatabaseDetails) []Schema {
+	executedMigrations := getAllDbMigrations(details)
+	allFileMigrations := getArrayOfMigrationFiles()
+	allFileMigrations = removeDuplicateSchemas(allFileMigrations)
+	allMigrations := append(executedMigrations, allFileMigrations...)
+	return findUniqueMigrations(allMigrations)
+
+}
 
 func getArrayOfMigrationFiles() []Schema {
 	items, _ := ioutil.ReadDir("./scripts/")
@@ -65,10 +93,10 @@ func getArrayOfMigrationFiles() []Schema {
 	return schemas
 }
 
-func removeDuplicateSchemas(sample []Schema) []Schema {
+func removeDuplicateSchemas(schemas []Schema) []Schema {
 	var unique []Schema
 	primaryLoop:
-	for _, v := range sample {
+	for _, v := range schemas {
 		for i, u := range unique {
 			if v.id == u.id {
 				unique[i] = v
@@ -78,6 +106,35 @@ func removeDuplicateSchemas(sample []Schema) []Schema {
 		unique = append(unique, v)
 	}
 	return unique
+}
+
+// note: here we assume that any migration that only appears once in our list, has not executed and therefore should be.
+func findUniqueMigrations(schemas []Schema) []Schema {
+	occurred := map[int64]int{}
+	var filtered []Schema
+	var unique []Schema
+	for e := range schemas {
+		if occurred[schemas[e].id] == 0 {
+			occurred[schemas[e].id] = 1
+			filtered = append(filtered, schemas[e])
+			continue
+		}
+		if occurred[schemas[e].id] == 1 {
+			occurred[schemas[e].id] = 2
+			filtered = append(filtered, schemas[e])
+			continue
+		}
+	}
+	for e := range filtered {
+		if occurred[filtered[e].id] == 1 {
+			unique = append(unique, filtered[e])
+		}
+	}
+	return unique
+}
+
+func remove(slice []Schema, s Schema) []Schema {
+	return append(slice[:s.id], slice[s.id+1:]...)
 }
 
 func getSchemaFromFileName(fileName string) Schema {
@@ -126,7 +183,7 @@ func createSchemaVersionTable(
 	defer insert.Close()
 }
 
-func getAllDbMigrations() []Schema {
+func getAllDbMigrations(details DatabaseDetails) []Schema {
 	db, err := sql.Open("mysql", "sqltracking:sqltracking@tcp(127.0.0.1:3306)/demodb")
 
 	if err != nil {

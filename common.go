@@ -1,0 +1,32 @@
+package main
+
+import (
+	"database/sql"
+	"fmt"
+	"log"
+	"time"
+)
+
+func createDbConnection(options DatabaseOptions) *sql.DB {
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)", options.sqlUser, options.sqlPassword, options.sqlHost, options.sqlPort))
+	if err != nil {
+		log.Println(err.Error())
+		log.Fatal("Could not establish connection to the db.")
+	}
+	defer db.Close()
+	return db
+}
+
+func command(dbInstance *sql.DB, command string)*sql.Row {
+
+}
+
+func query(dbInstance *sql.DB, query string)*sql.Rows {
+
+}
+
+type rawTime []byte
+
+func (t rawTime) Parse() (time.Time, error) {
+	return time.Parse("2006-01-02 15:04:05", string(t))
+}

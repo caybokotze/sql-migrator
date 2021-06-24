@@ -20,7 +20,7 @@ func runMigrations(
 	dryRun bool,
 	autoByPass bool) {
 
-	databaseDetails := DatabaseDetails{
+	databaseDetails := DatabaseOptions{
 		sqlUser: sqlUser,
 		sqlPassword: sqlPassword,
 		sqlHost: sqlHost,
@@ -35,12 +35,12 @@ func runMigrations(
 		sqlPort,
 		sqlDatabase)
 
-	migrations := findMigrationToExecute()
+	migrations := findMigrationToExecute(databaseDetails)
 
 	//var excludedMigrations = findExcludedMigrations()
 }
 
-type DatabaseDetails struct {
+type DatabaseOptions struct {
 	sqlUser string
 	sqlPassword string
 	sqlHost string
@@ -74,7 +74,7 @@ func findExcludedMigrations() []Schema {
 	return allFileMigrations
 }
 
-func findMigrationToExecute(details DatabaseDetails) []Schema {
+func findMigrationToExecute(details DatabaseOptions) []Schema {
 	executedMigrations := getAllDbMigrations(details)
 	allFileMigrations := getArrayOfMigrationFiles()
 	allFileMigrations = removeDuplicateSchemas(allFileMigrations)
@@ -183,7 +183,23 @@ func createSchemaVersionTable(
 	defer insert.Close()
 }
 
-func getAllDbMigrations(details DatabaseDetails) []Schema {
+func executeMigrations(options DatabaseOptions, schemas []Schema) {
+	db := createDbConnection(options)
+	for _, s := range schemas {
+		command(db, s.name)
+	}
+}
+
+func readSchemaContent(schema Schema) string {
+	fileName := fmt.Sprintf("%s_%s_%s", schema.id, schema.name, "up")
+	content, err := ioutil.ReadFile(fmt.Sprintf("./scripts/%s", fileName))
+	if err != nil {
+		log.Fatal(fmt.Sprintf("Could not open file, %s", fileName))
+	}
+	return string(content)
+}
+
+func getAllDbMigrations(details DatabaseOptions) []Schema {
 	db, err := sql.Open("mysql", "sqltracking:sqltracking@tcp(127.0.0.1:3306)/demodb")
 
 	if err != nil {
@@ -215,10 +231,4 @@ func getAllDbMigrations(details DatabaseDetails) []Schema {
 		schemas = append(schemas, schema)
 	}
 	return schemas
-}
-
-type rawTime []byte
-
-func (t rawTime) Parse() (time.Time, error) {
-	return time.Parse("2006-01-02 15:04:05", string(t))
 }

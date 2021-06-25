@@ -8,7 +8,11 @@ import (
 )
 
 func createDbConnection(options DatabaseOptions) *sql.DB {
-	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)", options.sqlUser, options.sqlPassword, options.sqlHost, options.sqlPort))
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)",
+		options.sqlUser,
+		options.sqlPassword,
+		options.sqlHost,
+		options.sqlPort))
 	if err != nil {
 		log.Println(err.Error())
 		log.Fatal("Could not establish connection to the db.")
@@ -17,12 +21,20 @@ func createDbConnection(options DatabaseOptions) *sql.DB {
 	return db
 }
 
-func command(dbInstance *sql.DB, command string)*sql.Row {
-
+func command(dbInstance *sql.DB, command string)*sql.Rows {
+	insert, err := dbInstance.Query(command)
+	if err != nil {
+		panic(err.Error())
+	}
+	return insert
 }
 
 func query(dbInstance *sql.DB, query string)*sql.Rows {
-
+	result, err := dbInstance.Query(query)
+	if err != nil {
+		panic(err.Error())
+	}
+	return result
 }
 
 type rawTime []byte

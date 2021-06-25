@@ -6,6 +6,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"io/ioutil"
 	"log"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -140,6 +141,7 @@ func remove(slice []Schema, s Schema) []Schema {
 func getSchemaFromFileName(fileName string) Schema {
 	s := strings.Split(fileName, "_")
 	id, err := strconv.ParseInt(s[0], 0, 64)
+	idAsDate
 	name := s[1]
 	if err != nil {
 		panic("id in file string can not be converted to integer")
@@ -151,42 +153,22 @@ func getSchemaFromFileName(fileName string) Schema {
 	}
 }
 
-func createSchemaVersionTable(
-	dbUser string,
-	dbPassword string,
-	ipAddress string,
-	port string,
-	database string,
-) {
-	createSchemaVersion := fmt.Sprintf("USE %s; " +
-		"CREATE TABLE IF NOT EXISTS schemaversion (" +
+func createSchemaVersionTable(options DatabaseOptions) {
+	db := createDbConnection(options)
+	command(db, "CREATE TABLE IF NOT EXISTS schemaversion (" +
 		"id BIGINT NOT NULL AUTO_INCREMENT, " +
 		"name VARCHAR(512) NULL, " +
 		"date_executed DATETIME DEFAULT CURRENT_TIMESTAMP, " +
-		"PRIMARY KEY (id));", database)
-
-	db, err := sql.Open("mysql",
-		fmt.Sprintf("%s:%s@tcp(%s:%s)", dbUser, dbPassword, ipAddress, port))
-
-	if err != nil {
-		panic(err.Error())
-	}
-
-	defer db.Close()
-
-	insert, err := db.Query(createSchemaVersion)
-
-	if err != nil {
-		panic(err.Error())
-	}
-
-	defer insert.Close()
+		"PRIMARY KEY (id));")
 }
 
 func executeMigrations(options DatabaseOptions, schemas []Schema) {
 	db := createDbConnection(options)
+	sort.Slice(schemas, func(i, j int) bool {
+		return schemas[i].dateexecuted.Before(schemas[j].dateexecuted)
+	})
 	for _, s := range schemas {
-		command(db, s.name)
+		command(db, readSchemaContent(s))
 	}
 }
 
@@ -200,19 +182,8 @@ func readSchemaContent(schema Schema) string {
 }
 
 func getAllDbMigrations(details DatabaseOptions) []Schema {
-	db, err := sql.Open("mysql", "sqltracking:sqltracking@tcp(127.0.0.1:3306)/demodb")
-
-	if err != nil {
-		log.Print(err.Error())
-	}
-
-	defer db.Close()
-
-	results, err := db.Query("SELECT `id`, `name`, `dateexecuted` FROM `schemaversion`")
-
-	if err != nil {
-		panic(err.Error())
-	}
+	db := createDbConnection(details)
+	results := query(db, "SELECT id, name, dateexecuted FROM schemaversion")
 
 	var schemas []Schema
 

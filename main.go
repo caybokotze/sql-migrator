@@ -91,7 +91,7 @@ func Initialise() {
 }
 
 type Schema struct {
-	id int64
+	id time.Time
 	name string
 	dateexecuted time.Time
 }

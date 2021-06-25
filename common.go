@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+type DatabaseOptions struct {
+	sqlUser string
+	sqlPassword string
+	sqlHost string
+	sqlPort string
+	sqlDatabase string
+}
+
+type Schema struct {
+	id int64
+	name string
+	dateexecuted time.Time
+}
+
 func createDbConnection(options DatabaseOptions) *sql.DB {
 	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)",
 		options.sqlUser,

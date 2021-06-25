@@ -22,7 +22,7 @@ func printOutMigrations() {
 }
 
 func printOutMigrationsForDb() {
-	var migrationFiles = getAllDbMigrations()
+	var migrationFiles = fetchMigrationsFromDb()
 	for _, s := range migrationFiles {
 		fmt.Println(s.name)
 	}
@@ -88,11 +88,5 @@ func Initialise() {
 
 		os.Exit(0)
 	}
-}
-
-type Schema struct {
-	id time.Time
-	name string
-	dateexecuted time.Time
 }
 

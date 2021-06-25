@@ -29,29 +29,16 @@ func runMigrations(
 		sqlDatabase: sqlDatabase,
 	}
 
-	createSchemaVersionTable(
-		sqlUser,
-		sqlPassword,
-		sqlHost,
-		sqlPort,
-		sqlDatabase)
+	createSchemaVersionTable(databaseDetails)
 
 	migrations := findMigrationToExecute(databaseDetails)
 
 	//var excludedMigrations = findExcludedMigrations()
 }
 
-type DatabaseOptions struct {
-	sqlUser string
-	sqlPassword string
-	sqlHost string
-	sqlPort string
-	sqlDatabase string
-}
-
 // this could be more efficient than the findUniqueMigrations method, but still needs work.
 func findExcludedMigrations() []Schema {
-	executedMigrations := getAllDbMigrations()
+	executedMigrations := fetchMigrationsFromDb()
 	allFileMigrations := getArrayOfMigrationFiles()
 	//lastMigrationRun := executedMigrations[len(executedMigrations)-1]
 
@@ -76,7 +63,7 @@ func findExcludedMigrations() []Schema {
 }
 
 func findMigrationToExecute(details DatabaseOptions) []Schema {
-	executedMigrations := getAllDbMigrations(details)
+	executedMigrations := fetchMigrationsFromDb(details)
 	allFileMigrations := getArrayOfMigrationFiles()
 	allFileMigrations = removeDuplicateSchemas(allFileMigrations)
 	allMigrations := append(executedMigrations, allFileMigrations...)
@@ -141,16 +128,22 @@ func remove(slice []Schema, s Schema) []Schema {
 func getSchemaFromFileName(fileName string) Schema {
 	s := strings.Split(fileName, "_")
 	id, err := strconv.ParseInt(s[0], 0, 64)
-	idAsDate
-	name := s[1]
 	if err != nil {
 		panic("id in file string can not be converted to integer")
 	}
 	return Schema{
 		id:           id,
-		name:         name,
+		name:         s[1],
 		dateexecuted: time.Now(),
 	}
+}
+
+func parseIdDateToDate(str string) time.Time {
+	t, err := time.Parse("20060102150405", str)
+	if err != nil {
+		panic(err.Error())
+	}
+	return t
 }
 
 func createSchemaVersionTable(options DatabaseOptions) {
@@ -165,7 +158,7 @@ func createSchemaVersionTable(options DatabaseOptions) {
 func executeMigrations(options DatabaseOptions, schemas []Schema) {
 	db := createDbConnection(options)
 	sort.Slice(schemas, func(i, j int) bool {
-		return schemas[i].dateexecuted.Before(schemas[j].dateexecuted)
+		return schemas[i].id < schemas[j].id
 	})
 	for _, s := range schemas {
 		command(db, readSchemaContent(s))
@@ -181,7 +174,7 @@ func readSchemaContent(schema Schema) string {
 	return string(content)
 }
 
-func getAllDbMigrations(details DatabaseOptions) []Schema {
+func fetchMigrationsFromDb(details DatabaseOptions) []Schema {
 	db := createDbConnection(details)
 	results := query(db, "SELECT id, name, dateexecuted FROM schemaversion")
 
@@ -190,12 +183,12 @@ func getAllDbMigrations(details DatabaseOptions) []Schema {
 	for results.Next() {
 		var schema Schema
 		var dateExecuted rawTime
-		err = results.Scan(&schema.id, &schema.name, &dateExecuted)
+		err := results.Scan(&schema.id, &schema.name, &dateExecuted)
 		if err != nil {
 			panic(err.Error())
 		}
-		expectedTime, err := dateExecuted.Parse()
-		if err != nil {
+		expectedTime, error := dateExecuted.Parse()
+		if error != nil {
 			panic("The datetime was in an unexpected format. expected: YYYY-MM-DD hh:mm:ss")
 		}
 		schema.dateexecuted = expectedTime

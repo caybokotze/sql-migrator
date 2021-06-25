@@ -1,1 +1,0 @@
-TRUNCATE TABLE lookup_invoice_statuses;

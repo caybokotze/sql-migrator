@@ -1,1 +1,0 @@
-TRUNCATE TABLE lookup_license_types;

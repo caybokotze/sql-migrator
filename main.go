@@ -21,9 +21,9 @@ func printOutMigrations() {
 		sqlPort:     "3306",
 		sqlDatabase: "demodb",
 	}
-	var migrationFiles = fetchMigrationsFromDb(options)
+	var migrationFiles = findMigrationToExecute(options)
 	for _, s := range migrationFiles {
-		fmt.Println(s.name)
+		fmt.Println(s.name, s.id)
 	}
 }
 

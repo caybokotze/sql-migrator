@@ -5,6 +5,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"io/ioutil"
 	"log"
+	_ "reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -36,15 +37,16 @@ func runMigrations(
 // this could be more efficient than the findUniqueMigrations method, but still needs work.
 func findExcludedMigrations(options DatabaseOptions) []Schema {
 
-	allFileMigrations := getArrayOfMigrationFiles()
+	allFileMigrations := getArrayOfMigrationFilesWithoutDuplicates()
 	allDbMigrations := fetchMigrationsFromDb(options)
+	allMigrations := append(allFileMigrations, allDbMigrations...)
 
-	m := make(map[Schema]int64)
+	m := make(map[int64]uint8)
 	for _, k := range allFileMigrations {
-		m[k] |= 1 << 0
+		m[k.id] |= 1 << 0
 	}
 	for _, k := range allDbMigrations {
-		m[k] |= 1 << 0
+		m[k.id] |= 1 << 0
 	}
 	var result []Schema
 	for k, v := range m {
@@ -52,7 +54,7 @@ func findExcludedMigrations(options DatabaseOptions) []Schema {
 		b := v&(1<<1) != 0
 		switch {
 			case !a && b:
-				result = append(result, k)
+				result = append(result, allMigrations[k])
 		}
 	}
 
@@ -61,14 +63,11 @@ func findExcludedMigrations(options DatabaseOptions) []Schema {
 
 func findMigrationToExecute(details DatabaseOptions) []Schema {
 	executedMigrations := fetchMigrationsFromDb(details)
-	allFileMigrations := getArrayOfMigrationFiles()
-	allFileMigrations = removeDuplicateSchemas(allFileMigrations)
-	allMigrations := append(executedMigrations, allFileMigrations...)
-	return findUniqueMigrations(allMigrations)
-
+	allFileMigrations := getArrayOfMigrationFilesWithoutDuplicates()
+	return findUniqueMigrations(allFileMigrations, executedMigrations)
 }
 
-func getArrayOfMigrationFiles() []Schema {
+func getArrayOfMigrationFilesWithoutDuplicates() []Schema {
 	items, _ := ioutil.ReadDir("./scripts/")
 	var schemas []Schema
 	for _, item := range items {
@@ -93,27 +92,17 @@ func removeDuplicateSchemas(schemas []Schema) []Schema {
 	return unique
 }
 
-// note: here we assume that any migration that only appears once in our list, has not executed and therefore should be.
-func findUniqueMigrations(schemas []Schema) []Schema {
-	occurred := map[int64]int{}
-	var filtered []Schema
+func findUniqueMigrations(fileMigrations []Schema, dbMigrations []Schema) []Schema {
+	occurred := map[int64]bool{}
 	var unique []Schema
-	for e := range schemas {
-		if occurred[schemas[e].id] == 0 {
-			occurred[schemas[e].id] = 1
-			filtered = append(filtered, schemas[e])
-			continue
-		}
-		if occurred[schemas[e].id] == 1 {
-			occurred[schemas[e].id] = 2
-			filtered = append(filtered, schemas[e])
-			continue
-		}
+	for _, v := range dbMigrations {
+		occurred[v.id] = true
 	}
-	for e := range filtered {
-		if occurred[filtered[e].id] == 1 {
-			unique = append(unique, filtered[e])
+	for _, v := range fileMigrations {
+		if occurred[v.id] == true {
+			continue
 		}
+		unique = append(unique, v)
 	}
 	return unique
 }
@@ -133,6 +122,7 @@ func getSchemaFromFileName(fileName string) Schema {
 
 func createSchemaVersionTable(options DatabaseOptions) {
 	db := createDbConnection(options)
+	defer db.Close()
 	command(db, "CREATE TABLE IF NOT EXISTS schemaversion (" +
 		"id BIGINT NOT NULL AUTO_INCREMENT, " +
 		"name VARCHAR(512) NULL, " +
@@ -142,6 +132,7 @@ func createSchemaVersionTable(options DatabaseOptions) {
 
 func executeMigrations(options DatabaseOptions, schemas []Schema) {
 	db := createDbConnection(options)
+	defer db.Close()
 	sort.Slice(schemas, func(i, j int) bool {
 		return schemas[i].id < schemas[j].id
 	})

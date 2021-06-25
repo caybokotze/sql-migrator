@@ -34,33 +34,6 @@ func runMigrations(
 	executeMigrations(databaseDetails, migrations)
 }
 
-// this could be more efficient than the findUniqueMigrations method, but still needs work.
-func findExcludedMigrations(options DatabaseOptions) []Schema {
-
-	allFileMigrations := getArrayOfMigrationFilesWithoutDuplicates()
-	allDbMigrations := fetchMigrationsFromDb(options)
-	allMigrations := append(allFileMigrations, allDbMigrations...)
-
-	m := make(map[int64]uint8)
-	for _, k := range allFileMigrations {
-		m[k.id] |= 1 << 0
-	}
-	for _, k := range allDbMigrations {
-		m[k.id] |= 1 << 0
-	}
-	var result []Schema
-	for k, v := range m {
-		a := v&(1<<0) != 0
-		b := v&(1<<1) != 0
-		switch {
-			case !a && b:
-				result = append(result, allMigrations[k])
-		}
-	}
-
-	return allFileMigrations
-}
-
 func findMigrationToExecute(details DatabaseOptions) []Schema {
 	executedMigrations := fetchMigrationsFromDb(details)
 	allFileMigrations := getArrayOfMigrationFilesWithoutDuplicates()

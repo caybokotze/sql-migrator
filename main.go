@@ -5,24 +5,23 @@ import (
 	"fmt"
 	"github.com/gookit/color"
 	"os"
-	"time"
 )
 
 func main() {
 	//Initialise()
-	//printOutMigrations()
+	printOutMigrations()
 	//printOutMigrationsForDb()
 }
 
 func printOutMigrations() {
-	var migrationFiles = getArrayOfMigrationFiles()
-	for _, s := range migrationFiles {
-		fmt.Println(s.name)
+	options := DatabaseOptions{
+		sqlUser:     "sqltracking",
+		sqlPassword: "sqltracking",
+		sqlHost:     "localhost",
+		sqlPort:     "3306",
+		sqlDatabase: "demodb",
 	}
-}
-
-func printOutMigrationsForDb() {
-	var migrationFiles = fetchMigrationsFromDb()
+	var migrationFiles = fetchMigrationsFromDb(options)
 	for _, s := range migrationFiles {
 		fmt.Println(s.name)
 	}

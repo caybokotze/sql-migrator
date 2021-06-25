@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
 	"io/ioutil"
@@ -30,23 +29,21 @@ func runMigrations(
 	}
 
 	createSchemaVersionTable(databaseDetails)
-
 	migrations := findMigrationToExecute(databaseDetails)
-
-	//var excludedMigrations = findExcludedMigrations()
+	executeMigrations(databaseDetails, migrations)
 }
 
 // this could be more efficient than the findUniqueMigrations method, but still needs work.
-func findExcludedMigrations() []Schema {
-	executedMigrations := fetchMigrationsFromDb()
+func findExcludedMigrations(options DatabaseOptions) []Schema {
+
 	allFileMigrations := getArrayOfMigrationFiles()
-	//lastMigrationRun := executedMigrations[len(executedMigrations)-1]
+	allDbMigrations := fetchMigrationsFromDb(options)
 
 	m := make(map[Schema]int64)
-	for _, k := range executedMigrations {
+	for _, k := range allFileMigrations {
 		m[k] |= 1 << 0
 	}
-	for _, k := range allFileMigrations {
+	for _, k := range allDbMigrations {
 		m[k] |= 1 << 0
 	}
 	var result []Schema
@@ -121,10 +118,6 @@ func findUniqueMigrations(schemas []Schema) []Schema {
 	return unique
 }
 
-func remove(slice []Schema, s Schema) []Schema {
-	return append(slice[:s.id], slice[s.id+1:]...)
-}
-
 func getSchemaFromFileName(fileName string) Schema {
 	s := strings.Split(fileName, "_")
 	id, err := strconv.ParseInt(s[0], 0, 64)
@@ -136,14 +129,6 @@ func getSchemaFromFileName(fileName string) Schema {
 		name:         s[1],
 		dateexecuted: time.Now(),
 	}
-}
-
-func parseIdDateToDate(str string) time.Time {
-	t, err := time.Parse("20060102150405", str)
-	if err != nil {
-		panic(err.Error())
-	}
-	return t
 }
 
 func createSchemaVersionTable(options DatabaseOptions) {
@@ -176,6 +161,7 @@ func readSchemaContent(schema Schema) string {
 
 func fetchMigrationsFromDb(details DatabaseOptions) []Schema {
 	db := createDbConnection(details)
+	defer db.Close()
 	results := query(db, "SELECT id, name, dateexecuted FROM schemaversion")
 
 	var schemas []Schema

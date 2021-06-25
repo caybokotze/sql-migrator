@@ -22,16 +22,16 @@ type Schema struct {
 }
 
 func createDbConnection(options DatabaseOptions) *sql.DB {
-	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)",
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s",
 		options.sqlUser,
 		options.sqlPassword,
 		options.sqlHost,
-		options.sqlPort))
+		options.sqlPort,
+		options.sqlDatabase))
 	if err != nil {
 		log.Println(err.Error())
 		log.Fatal("Could not establish connection to the db.")
 	}
-	defer db.Close()
 	return db
 }
 
@@ -55,4 +55,16 @@ type rawTime []byte
 
 func (t rawTime) Parse() (time.Time, error) {
 	return time.Parse("2006-01-02 15:04:05", string(t))
+}
+
+func removeFromSlice(slice []Schema, s Schema) []Schema {
+	return append(slice[:s.id], slice[s.id+1:]...)
+}
+
+func parseIdDateToDate(str string) time.Time {
+	t, err := time.Parse("20060102150405", str)
+	if err != nil {
+		panic(err.Error())
+	}
+	return t
 }

@@ -21,6 +21,13 @@ func printOutMigrations() {
 	}
 }
 
+func requiredFieldsAreEmpty(sqlUser, sqlPassword, sqlDatabase string) bool {
+	if sqlUser == "" || sqlPassword == "" || sqlDatabase == "" {
+		return true
+	}
+	return false
+}
+
 func Initialise() {
 	sqlNew := flag.Bool("sql-new", false, "flag that set's whether a new sql migration needs to be created.")
 	sqlUp := flag.Bool("sql-up", false, "flag that is set to define whether existing migrations should be run.")
@@ -32,6 +39,21 @@ func Initialise() {
 	dryRun := flag.Bool("dry-run", false, "dry run will run the migrations in 'ISOLATION UNCOMMITTED' mode")
 	autoByPass := flag.Bool("auto-bypass", false, "if auto bypass in enabled, a failed migration would throw the error and be inserted into the db.")
 	flag.Parse()
+
+	config := loadConfigFromJsonFile()
+
+	if requiredFieldsAreEmpty(*sqlUser, *sqlPassword, *sqlDatabase){
+		*sqlUser = config.sqlUser
+		*sqlPassword = config.sqlPassword
+		*sqlDatabase = config.sqlDatabase
+		*sqlHost = config.sqlHost
+		*sqlPort = config.sqlHost
+	}
+
+	if config.autoByPass || config.dryRun {
+		*dryRun = config.dryRun
+		*autoByPass = config.autoByPass
+	}
 
 	if *sqlPort == "" {
 		*sqlPort = "3306"
@@ -52,23 +74,21 @@ func Initialise() {
 		os.Exit(0)
 	}
 	if *sqlUp == true {
-		if *sqlUser == "" ||
-			*sqlPassword == "" ||
-			*sqlDatabase == "" {
-
+		if requiredFieldsAreEmpty(*sqlUser, *sqlPassword, *sqlDatabase) {
 			color.Red.Println("You are required to provide a sql user, password and database name, either as a argument or environment variable")
 			fmt.Println(`e.g: mysql-migrator -sql-up -sql-database="doggy_db" -sql-user="doggo" -sql-password="le-woof"`)
 			os.Exit(1)
 		}
 
-		runMigrations(
-			*sqlUser,
-			*sqlPassword,
-			*sqlHost,
-			*sqlPort,
-			*sqlDatabase,
-			*dryRun,
-			*autoByPass)
+		runMigrations(DatabaseOptions{
+			sqlUser:     *sqlUser,
+			sqlPassword: *sqlPassword,
+			sqlHost:     *sqlHost,
+			sqlPort:     *sqlPort,
+			sqlDatabase: *sqlDatabase,
+			dryRun:      *dryRun,
+			autoByPass:  *autoByPass,
+		})
 
 		os.Exit(0)
 	}

@@ -13,25 +13,10 @@ import (
 )
 
 func runMigrations(
-	sqlUser string,
-	sqlPassword string,
-	sqlHost string,
-	sqlPort string,
-	sqlDatabase string,
-	dryRun bool,
-	autoByPass bool) {
-
-	databaseDetails := DatabaseOptions{
-		sqlUser: sqlUser,
-		sqlPassword: sqlPassword,
-		sqlHost: sqlHost,
-		sqlPort: sqlPort,
-		sqlDatabase: sqlDatabase,
-	}
-
-	createSchemaVersionTable(databaseDetails)
-	migrations := findMigrationToExecute(databaseDetails)
-	executeMigrations(databaseDetails, migrations)
+	details DatabaseOptions) {
+	createSchemaVersionTable(details)
+	migrations := findMigrationToExecute(details)
+	executeMigrations(details, migrations)
 }
 
 func findMigrationToExecute(details DatabaseOptions) []Schema {

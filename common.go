@@ -16,6 +16,8 @@ type DatabaseOptions struct {
 	sqlHost string `json:"sqlHost"`
 	sqlPort string `json:"sqlPort"`
 	sqlDatabase string `json:"sqlDatabase"`
+	dryRun bool
+	autoByPass bool
 }
 
 type Schema struct {

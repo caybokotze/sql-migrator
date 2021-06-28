@@ -9,18 +9,12 @@ import (
 
 func main() {
 	//Initialise()
-	printOutMigrations()
+	createNewMigration()
 	//printOutMigrationsForDb()
 }
 
 func printOutMigrations() {
-	options := DatabaseOptions{
-		sqlUser:     "sqltracking",
-		sqlPassword: "sqltracking",
-		sqlHost:     "localhost",
-		sqlPort:     "3306",
-		sqlDatabase: "demodb",
-	}
+	options := loadConfigFromJsonFile()
 	var migrationFiles = findMigrationToExecute(options)
 	for _, s := range migrationFiles {
 		fmt.Println(s.name, s.id)
@@ -30,29 +24,20 @@ func printOutMigrations() {
 func Initialise() {
 	sqlNew := flag.Bool("sql-new", false, "flag that set's whether a new sql migration needs to be created.")
 	sqlUp := flag.Bool("sql-up", false, "flag that is set to define whether existing migrations should be run.")
-	sqlUser := flag.String("sql-user", os.Getenv("SQL_USER"), "the sql user that needs to be used to execute migrations")
-	sqlPassword := flag.String("sql-password", os.Getenv("SQL_PASSWORD"), "the sql user password that is required to execute the migrations")
-	sqlPort := flag.String("sql-port", os.Getenv("SQL_PORT"), "the sql port that is required to open a db connection")
-	sqlHost := flag.String("sql-host", os.Getenv("SQL_HOST"), "the sql host that is required to open a db connection")
-	sqlDatabase := flag.String("sql-database", os.Getenv("SQL_DATABASE"), "the targeted database that is required to open a db connection")
-	envDryRun := false
-	if os.Getenv("DRY_RUN") != "" {
-		envDryRun = true
-	}
-	dryRun := flag.Bool("dry-run", envDryRun, "use the dry-run flag if you want to execute all migrations within a transaction scope so that changes are not persisted")
-	envAutoByPass := false
-	if os.Getenv("AUTO_BYPASS") != "" {
-		envAutoByPass = true
-	}
-	autoByPass := flag.Bool("auto-bypass", envAutoByPass, "use this flag if you want to continue executing migrations even if one or more fail to execute")
-
+	sqlUser := flag.String("sql-user", "", "the sql user that needs to be used to execute migrations")
+	sqlPassword := flag.String("sql-password", "", "the sql user password that is required to execute the migrations")
+	sqlPort := flag.String("sql-port", "", "the sql port that is required to open a db connection")
+	sqlHost := flag.String("sql-host", "", "the sql host that is required to open a db connection")
+	sqlDatabase := flag.String("sql-database", "", "the targeted database that is required to open a db connection")
+	dryRun := flag.Bool("dry-run", false, "dry run will run the migrations in 'ISOLATION UNCOMMITTED' mode")
+	autoByPass := flag.Bool("auto-bypass", false, "if auto bypass in enabled, a failed migration would throw the error and be inserted into the db.")
 	flag.Parse()
 
 	if *sqlPort == "" {
 		*sqlPort = "3306"
 	}
 	if *sqlHost == "" {
-		*sqlHost = "127.0.0.1"
+		*sqlHost = "localhost"
 	}
 	if *sqlNew == false && *sqlUp == false {
 		color.Red.Println("You didn't supply any arguments... Please try again, use -h for help.")

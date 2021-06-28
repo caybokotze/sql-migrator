@@ -4,5 +4,12 @@
   "description": "This is the package.json file for the migration runner executable to maintain variables and make them easily editable",
   "scripts": {
     "sql-up": "release/mysql-migrator.exe -sql-up -sql-user=\\\"sqltracking\\\" -sql-password=\\\"sqltracking\\\" -sql-host=\\\"localhost\\\" -sql-port=\\\"3306\\\""
+  },
+  "config": {
+    "dbUser": "sqltracking",
+    "dbPassword": "sqltracking",
+    "sqlHost": "localhost",
+    "sqlPort": "3306",
+    "sqlDatabase": "demodb"
   }
 }

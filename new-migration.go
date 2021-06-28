@@ -16,7 +16,7 @@ func createNewMigration() {
 	text, _ := reader.ReadString('\n')
 	re := regexp.MustCompile(`\r?\n`)
 	text = re.ReplaceAllString(text, "")
-	scriptName := getTimestampAsString() + "-" + text
+	scriptName := getTimestampAsString() + "_" + text
 	upScript := scriptName + "_up"
 	downScript := scriptName + "_down"
 	err := ioutil.WriteFile(fmt.Sprintf("./scripts/%s.sql", upScript), []byte(""), 0755)

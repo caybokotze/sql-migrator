@@ -2,23 +2,32 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
+	"os"
 	"time"
 )
 
 type DatabaseOptions struct {
-	sqlUser string
-	sqlPassword string
-	sqlHost string
-	sqlPort string
-	sqlDatabase string
+	sqlUser string `json:"dbUser"`
+	sqlPassword string `json:"dbPassword"`
+	sqlHost string `json:"sqlHost"`
+	sqlPort string `json:"sqlPort"`
+	sqlDatabase string `json:"sqlDatabase"`
 }
 
 type Schema struct {
 	id int64
 	name string
 	dateexecuted time.Time
+}
+
+type rawTime []byte
+
+type Package struct {
+	config DatabaseOptions `json:"config"`
 }
 
 func createDbConnection(options DatabaseOptions) *sql.DB {
@@ -51,10 +60,23 @@ func query(dbInstance *sql.DB, query string)*sql.Rows {
 	return result
 }
 
-type rawTime []byte
-
 func (t rawTime) Parse() (time.Time, error) {
 	return time.Parse("2006-01-02 15:04:05", string(t))
+}
+
+func loadConfigFromJsonFile() DatabaseOptions {
+	file, err := os.Open("package.json")
+	if err != nil {
+		panic("Could not open package.json file")
+	}
+	var jsonPackage Package
+	stringBytes, _ := ioutil.ReadAll(file)
+	defer file.Close()
+	err = json.Unmarshal(stringBytes, &jsonPackage)
+	if err != nil {
+		panic("Could not unmarshal json file")
+	}
+	return jsonPackage.config
 }
 
 func removeFromSlice(slice []Schema, s Schema) []Schema {

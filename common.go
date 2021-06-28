@@ -46,12 +46,12 @@ func createDbConnection(options DatabaseOptions) *sql.DB {
 	return db
 }
 
-func command(dbInstance *sql.DB, command string)*sql.Rows {
+func command(dbInstance *sql.DB, command string)(*sql.Rows, error) {
 	insert, err := dbInstance.Query(command)
 	if err != nil {
-		panic(err.Error())
+		return nil, err
 	}
-	return insert
+	return insert, nil
 }
 
 func query(dbInstance *sql.DB, query string)*sql.Rows {

@@ -8,9 +8,7 @@ import (
 )
 
 func main() {
-	//Initialise()
-	createNewMigration()
-	//printOutMigrationsForDb()
+	Initialise()
 }
 
 func printOutMigrations() {
@@ -54,7 +52,6 @@ func Initialise() {
 		*dryRun = config.dryRun
 		*autoByPass = config.autoByPass
 	}
-
 	if *sqlPort == "" {
 		*sqlPort = "3306"
 	}

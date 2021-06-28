@@ -1,1 +1,1 @@
-ALTER TABLE users CHANGE password_reset password_reset_date DATETIME;
+CREATE TABLE users (id int primary key, name varchar(100))

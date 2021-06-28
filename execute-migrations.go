@@ -1,8 +1,10 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/gookit/color"
 	"io/ioutil"
 	"log"
 	_ "reflect"
@@ -12,8 +14,11 @@ import (
 	"time"
 )
 
+var databaseOptions DatabaseOptions
+
 func runMigrations(
 	details DatabaseOptions) {
+	databaseOptions = details
 	createSchemaVersionTable(details)
 	migrations := findMigrationToExecute(details)
 	executeMigrations(details, migrations)
@@ -81,10 +86,10 @@ func getSchemaFromFileName(fileName string) Schema {
 func createSchemaVersionTable(options DatabaseOptions) {
 	db := createDbConnection(options)
 	defer db.Close()
-	command(db, "CREATE TABLE IF NOT EXISTS schemaversion (" +
-		"id BIGINT NOT NULL AUTO_INCREMENT, " +
-		"name VARCHAR(512) NULL, " +
-		"date_executed DATETIME DEFAULT CURRENT_TIMESTAMP, " +
+	_, _ = command(db, "CREATE TABLE IF NOT EXISTS schemaversion ("+
+		"id BIGINT NOT NULL AUTO_INCREMENT, "+
+		"name VARCHAR(512) NULL, "+
+		"date_executed DATETIME DEFAULT CURRENT_TIMESTAMP, "+
 		"PRIMARY KEY (id));")
 }
 
@@ -95,17 +100,47 @@ func executeMigrations(options DatabaseOptions, schemas []Schema) {
 		return schemas[i].id < schemas[j].id
 	})
 	for _, s := range schemas {
-		command(db, readSchemaContent(s))
+		_, err := command(db, readSchemaContent(s))
+		// todo: Code to handle autoByPass...
+		if err != nil {
+			panic(err)
+		}
+		insertSchemaVersion(db, s)
+		color.Green.Println(getSchemaFileName(s), "executed successfully...")
 	}
 }
 
 func readSchemaContent(schema Schema) string {
-	fileName := fmt.Sprintf("%s_%s_%s", schema.id, schema.name, "up")
+	fileName := getSchemaUpScript(getSchemaFileName(schema))
 	content, err := ioutil.ReadFile(fmt.Sprintf("./scripts/%s", fileName))
 	if err != nil {
 		log.Fatal(fmt.Sprintf("Could not open file, %s", fileName))
 	}
 	return string(content)
+}
+
+func backtrackMigrations() {
+	// todo: Code to roll back migrations
+}
+
+func getSchemaFileName(schema Schema) string {
+	return fmt.Sprintf("%s_%s", strconv.FormatInt(schema.id, 10), schema.name)
+}
+
+func getSchemaUpScript(fileName string) string {
+	return fmt.Sprintf("%s_%s", fileName, "up.sql")
+}
+
+func getSchemaDownScript(fileName string) string {
+	return fmt.Sprintf("%s_%s", fileName, "down.sql")
+}
+
+func insertSchemaVersion(db *sql.DB, schema Schema) {
+	sqlText := fmt.Sprintf("INSERT INTO schemaversion VALUES (%d, '%s', '%s');", schema.id, schema.name, schema.dateexecuted.Format("2006-01-02;15:04:05"))
+	_, err := command(db, sqlText)
+	if err != nil {
+		panic(err.Error())
+	}
 }
 
 func fetchMigrationsFromDb(details DatabaseOptions) []Schema {

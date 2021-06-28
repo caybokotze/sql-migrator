@@ -7,6 +7,7 @@ import (
 	"github.com/gookit/color"
 	"io/ioutil"
 	"log"
+	"os"
 	_ "reflect"
 	"sort"
 	"strconv"
@@ -96,6 +97,10 @@ func createSchemaVersionTable(options DatabaseOptions) {
 func executeMigrations(options DatabaseOptions, schemas []Schema) {
 	db := createDbConnection(options)
 	defer db.Close()
+	if len(schemas) == 0 {
+		color.Cyan.Println("All up to date...")
+		os.Exit(0)
+	}
 	sort.Slice(schemas, func(i, j int) bool {
 		return schemas[i].id < schemas[j].id
 	})
@@ -136,7 +141,11 @@ func getSchemaDownScript(fileName string) string {
 }
 
 func insertSchemaVersion(db *sql.DB, schema Schema) {
-	sqlText := fmt.Sprintf("INSERT INTO schemaversion VALUES (%d, '%s', '%s');", schema.id, schema.name, schema.dateexecuted.Format("2006-01-02;15:04:05"))
+	sqlText := fmt.Sprintf("INSERT INTO schemaversion VALUES (%d, '%s', '%s');",
+		schema.id,
+		schema.name,
+		schema.dateexecuted.Format("2006-01-02T15:04:05"))
+
 	_, err := command(db, sqlText)
 	if err != nil {
 		panic(err.Error())

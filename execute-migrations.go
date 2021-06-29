@@ -35,7 +35,7 @@ func getArrayOfMigrationFilesWithoutDuplicates() []Schema {
 	items, _ := ioutil.ReadDir("./scripts/")
 	var schemas []Schema
 	for _, item := range items {
-		schemas = append(schemas, getSchemaFromFileName(item.Name()))
+		schemas = append(schemas, generateSchemaFromFileName(item.Name()))
 	}
 	schemas = removeDuplicateSchemas(schemas)
 	return schemas
@@ -71,7 +71,7 @@ func findUniqueMigrations(fileMigrations []Schema, dbMigrations []Schema) []Sche
 	return unique
 }
 
-func getSchemaFromFileName(fileName string) Schema {
+func generateSchemaFromFileName(fileName string) Schema {
 	s := strings.Split(fileName, "_")
 	id, err := strconv.ParseInt(s[0], 0, 64)
 	if err != nil {
@@ -87,10 +87,10 @@ func getSchemaFromFileName(fileName string) Schema {
 func createSchemaVersionTable(options DatabaseOptions) {
 	db := createDbConnection(options)
 	defer db.Close()
-	_, err := command(db, "CREATE TABLE IF NOT EXISTS schemaversion ("+
+	_, err := command(db, "CREATE TABLE IF NOT EXISTS __schema_versioning ("+
 		"id BIGINT NOT NULL AUTO_INCREMENT, "+
 		"name VARCHAR(255) NULL, "+
-		"dateexecuted DATETIME DEFAULT CURRENT_TIMESTAMP, "+
+		"date_executed DATETIME DEFAULT CURRENT_TIMESTAMP, "+
 		"PRIMARY KEY (id));")
 	if err != nil {
 		panic(err.Error())
@@ -158,7 +158,7 @@ func insertSchemaVersion(db *sql.DB, schema Schema) {
 func fetchMigrationsFromDb(details DatabaseOptions) []Schema {
 	db := createDbConnection(details)
 	defer db.Close()
-	results := query(db, "SELECT id, name, dateexecuted FROM schemaversion")
+	results := query(db, "SELECT id, name, date_executed FROM __schema_versioning")
 
 	var schemas []Schema
 

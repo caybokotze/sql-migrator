@@ -52,13 +52,16 @@ func command(dbInstance *sql.DB, command string) error {
 	if txErr != nil {
 		panic(txErr.Error())
 	}
-	_, _ = tx.Prepare(command)
-	return tx.Commit()
-	//_, err := dbInstance.Exec(command)
-	//if err != nil {
-	//	return err
-	//}
-	//return nil
+	_, prepErr := tx.Prepare(command)
+	if prepErr != nil {
+		panic(prepErr.Error())
+	}
+	err := tx.Commit()
+	if err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	return nil
 }
 
 func query(dbInstance *sql.DB, query string)*sql.Rows {

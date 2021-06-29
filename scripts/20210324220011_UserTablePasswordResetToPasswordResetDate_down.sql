@@ -1,1 +1,0 @@
-ALTER TABLE users CHANGE password_reset_date password_reset DATETIME;

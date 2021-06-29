@@ -87,11 +87,14 @@ func getSchemaFromFileName(fileName string) Schema {
 func createSchemaVersionTable(options DatabaseOptions) {
 	db := createDbConnection(options)
 	defer db.Close()
-	_, _ = command(db, "CREATE TABLE IF NOT EXISTS schemaversion ("+
+	_, err := command(db, "CREATE TABLE IF NOT EXISTS schemaversion ("+
 		"id BIGINT NOT NULL AUTO_INCREMENT, "+
-		"name VARCHAR(512) NULL, "+
-		"date_executed DATETIME DEFAULT CURRENT_TIMESTAMP, "+
+		"name VARCHAR(255) NULL, "+
+		"dateexecuted DATETIME DEFAULT CURRENT_TIMESTAMP, "+
 		"PRIMARY KEY (id));")
+	if err != nil {
+		panic(err.Error())
+	}
 }
 
 func executeMigrations(options DatabaseOptions, schemas []Schema) {

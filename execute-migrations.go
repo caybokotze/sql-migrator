@@ -87,7 +87,7 @@ func generateSchemaFromFileName(fileName string) Schema {
 func createSchemaVersionTable(options DatabaseOptions) {
 	db := createDbConnection(options)
 	defer db.Close()
-	_, err := command(db, "CREATE TABLE IF NOT EXISTS __schema_versioning ("+
+	err := command(db, "CREATE TABLE IF NOT EXISTS __schema_versioning ("+
 		"id BIGINT NOT NULL AUTO_INCREMENT, "+
 		"name VARCHAR(255) NULL, "+
 		"date_executed DATETIME DEFAULT CURRENT_TIMESTAMP, "+
@@ -108,7 +108,7 @@ func executeMigrations(options DatabaseOptions, schemas []Schema) {
 		return schemas[i].id < schemas[j].id
 	})
 	for _, s := range schemas {
-		_, err := command(db, readSchemaContent(s))
+		err := command(db, readSchemaContent(s))
 		// todo: Code to handle autoByPass...
 		if err != nil {
 			panic(err)
@@ -150,7 +150,7 @@ func insertSchemaVersion(db *sql.DB, schema Schema) {
 		schema.name,
 		schema.dateexecuted.Format("2006-01-02T15:04:05"))
 
-	_, err := command(db, sqlText)
+	err := command(db, sqlText)
 	if err != nil {
 		panic(err.Error())
 	}

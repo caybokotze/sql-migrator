@@ -6,7 +6,6 @@ import (
 	"github.com/gookit/color"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 )
@@ -38,12 +37,6 @@ func createNewMigration() {
 	color.Blue.Println("To run migrations use -sql-up=true flag option.")
 }
 
-func openFilesInVsCode(upScript string, downScript string) {
-	cmd := exec.Command("code",
-		fmt.Sprintf(".scripts/%s.sql", upScript),
-		fmt.Sprintf(".scripts/%s.sql", downScript))
-	_ = cmd.Start()
-}
 
 func getTimestampAsString() string {
 	return time.Now().Format("20060102150405")

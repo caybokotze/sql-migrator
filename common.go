@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
 	"time"
 )
 
@@ -79,6 +80,13 @@ func loadConfigFromJsonFile() DatabaseOptions {
 		panic("Could not unmarshal json file")
 	}
 	return jsonPackage.config
+}
+
+func openFilesInVsCode(upScript string, downScript string) {
+	cmd := exec.Command("code",
+		fmt.Sprintf("scripts/%s.sql", upScript),
+		fmt.Sprintf("scripts/%s.sql", downScript))
+	_ = cmd.Start()
 }
 
 func removeFromSlice(slice []Schema, s Schema) []Schema {

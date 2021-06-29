@@ -144,7 +144,8 @@ func getSchemaDownScript(fileName string) string {
 }
 
 func insertSchemaVersion(db *sql.DB, schema Schema) {
-	sqlText := fmt.Sprintf("INSERT INTO schemaversion VALUES (%d, '%s', '%s');",
+	// todo: make the table renaming possible for the user.
+	sqlText := fmt.Sprintf("INSERT INTO __schema_versioning VALUES (%d, '%s', '%s');",
 		schema.id,
 		schema.name,
 		schema.dateexecuted.Format("2006-01-02T15:04:05"))

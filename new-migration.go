@@ -3,9 +3,10 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"github.com/gookit/color"
 	"io/ioutil"
 	"os"
-	"regexp"
+	"strings"
 	"time"
 )
 
@@ -14,9 +15,9 @@ func createNewMigration() {
 	fmt.Println("Create a new name for a migration: ")
 	fmt.Print("-> ")
 	text, _ := reader.ReadString('\n')
-	re := regexp.MustCompile(`\r?\n`)
-	text = re.ReplaceAllString(text, "")
-	scriptName := getTimestampAsString() + "_" + text
+	fileName := strings.TrimSpace(text)
+	fileName = strings.ReplaceAll(fileName, " ", "")
+	scriptName := getTimestampAsString() + "_" + fileName
 	upScript := scriptName + "_up"
 	downScript := scriptName + "_down"
 	_ = os.Mkdir("scripts", 0755)
@@ -25,6 +26,8 @@ func createNewMigration() {
 		panic(err.Error())
 	}
 	_ = ioutil.WriteFile(fmt.Sprintf("./scripts/%s.sql", downScript), []byte(""), 0755)
+	color.Green.Println("Migration was created successfully.")
+	color.Blue.Println("To run migrations use -sql-up=true flag option.")
 }
 
 func getTimestampAsString() string {

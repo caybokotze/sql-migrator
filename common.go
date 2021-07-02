@@ -48,17 +48,23 @@ func createDbConnection(options DatabaseOptions) *sql.DB {
 }
 
 func command(dbInstance *sql.DB, command string) error {
-	tx, txErr := dbInstance.Begin()
+	transaction, txErr := dbInstance.Begin()
 	if txErr != nil {
 		panic(txErr.Error())
 	}
-	_, prepErr := tx.Prepare(command)
+	prep, prepErr := transaction.Prepare(command)
+	defer prep.Close()
 	if prepErr != nil {
 		panic(prepErr.Error())
 	}
-	err := tx.Commit()
+	_, execErr := prep.Exec()
+	if execErr != nil {
+		_ = transaction.Rollback()
+		panic(execErr.Error())
+	}
+	err := transaction.Commit()
 	if err != nil {
-		_ = tx.Rollback()
+		_ = transaction.Rollback()
 		return err
 	}
 	return nil

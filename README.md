@@ -14,7 +14,7 @@
 ## How to get started
 
 ### You will need
-- Previous .exe release (on Windows)
+- Previous .exe release (on Windows) here: https://github.com/caybokotze/sql-migrator/releases/tag/1.1
 - package.json file (for conveniance but not strictly required)
 
 ### Package.json example

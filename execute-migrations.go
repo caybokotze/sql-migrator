@@ -15,11 +15,8 @@ import (
 	"time"
 )
 
-var databaseOptions DatabaseOptions
-
 func runMigrations(
 	details DatabaseOptions) {
-	databaseOptions = details
 	createSchemaVersionTable(details)
 	migrations := findMigrationToExecute(details)
 	executeMigrations(details, migrations)

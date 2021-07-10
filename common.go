@@ -15,13 +15,14 @@ import (
 )
 
 type DatabaseOptions struct {
-	sqlUser string `json:"dbUser"`
-	sqlPassword string `json:"dbPassword"`
-	sqlHost string `json:"sqlHost"`
-	sqlPort string `json:"sqlPort"`
-	sqlDatabase string `json:"sqlDatabase"`
-	dryRun bool
-	autoByPass bool
+	SqlUser     string `json:"sqlUser"`
+	SqlPassword string `json:"sqlPassword"`
+	SqlHost     string `json:"sqlHost"`
+	SqlPort     string `json:"sqlPort"`
+	SqlDatabase string `json:"sqlDatabase"`
+	DryRun      bool
+	AutoByPass  bool
+	Verbose bool
 }
 
 type Schema struct {
@@ -33,16 +34,16 @@ type Schema struct {
 type rawTime []byte
 
 type Package struct {
-	config DatabaseOptions `json:"config"`
+	DatabaseConfiguration DatabaseOptions `json:"sql-migrator-config"`
 }
 
 func createDbConnection(options DatabaseOptions) *sql.DB {
-	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?multiStatements=true&interpolateParams=true",
-		options.sqlUser,
-		options.sqlPassword,
-		options.sqlHost,
-		options.sqlPort,
-		options.sqlDatabase))
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?multiStatements=true",
+		options.SqlUser,
+		options.SqlPassword,
+		options.SqlHost,
+		options.SqlPort,
+		options.SqlDatabase))
 	if err != nil {
 		log.Println(err.Error())
 		log.Fatal("Could not establish connection to the db.")
@@ -96,7 +97,7 @@ func loadConfigFromJsonFile() DatabaseOptions {
 	if err != nil {
 		panic("Could not unmarshal json file")
 	}
-	return jsonPackage.config
+	return jsonPackage.DatabaseConfiguration
 }
 
 func openFilesInFileEditor(upScript string, downScript string) {

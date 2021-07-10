@@ -3,12 +3,12 @@
   "version": "1.0.0",
   "description": "This is the package.json file for the migration runner executable to maintain variables and make them easily editable",
   "scripts": {
-    "sql-up": "mysql-migrator.exe -sql-up=true -sql-user=sqltracking -sql-password=sqltracking -sql-host=localhost -sql-port=3306 -sql-database=demodb",
-    "sql-new": "mysql-migrator.exe -sql-new=true -sql-user=sqltracking -sql-password=sqltracking -sql-host=localhost -sql-port=3306 -sql-database=demodb"
+    "sql-up": "mysql-migrator.exe sql-up --user=sqltracking --password=sqltracking --host=localhost --port=3306 --database=demodb",
+    "sql-new": "mysql-migrator.exe sql-new"
   },
   "sql-migrator-config": {
-    "dbUser": "sqltracking",
-    "dbPassword": "sqltracking",
+    "sqlUser": "sqltracking",
+    "sqlPassword": "sqltracking",
     "sqlHost": "localhost",
     "sqlPort": "3306",
     "sqlDatabase": "demodb"

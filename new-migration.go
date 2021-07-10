@@ -27,13 +27,8 @@ func createNewMigration() {
 	}
 	_ = ioutil.WriteFile(fmt.Sprintf("./scripts/%s.sql", downScript), []byte(""), 0755)
 	color.Green.Println("Migration was created successfully.")
-	color.Cyan.Print("Do you want to open the migrations in VsCode? (y/n): ")
-	option, _ := reader.ReadString('\n')
-	option = strings.ToLower(strings.TrimSpace(option))
-	if option == "y" || option == "yes" {
-		openFilesInFileEditor(upScript, downScript)
-	}
 	color.Blue.Println("To run migrations use -sql-up=true flag option.")
+	openFilesInFileEditor(upScript, downScript)
 }
 
 func getTimestampAsString() string {

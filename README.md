@@ -29,9 +29,9 @@
     "sql-up": "mysql-migrator.exe -sql-up=true -sql-user=dbuser -sql-password=dbpassword -sql-host=localhost -sql-port=3306 -sql-database=demodb",
     "sql-new": "mysql-migrator.exe -sql-new=true -sql-user=dbuser -sql-password=dbpassword -sql-host=localhost -sql-port=3306 -sql-database=demodb"
   },
-  "config": {
-    "dbUser": "dbuser",
-    "dbPassword": "dbpassword",
+  "sql-migrator-config": {
+    "sqlUser": "sqltracking",
+    "sqlPassword": "sqltracking",
     "sqlHost": "localhost",
     "sqlPort": "3306",
     "sqlDatabase": "demodb"

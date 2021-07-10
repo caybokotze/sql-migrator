@@ -3,12 +3,59 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/alecthomas/kingpin"
 	"github.com/gookit/color"
 	"os"
 )
 
 func main() {
+	var (
+		newCommand = kingpin.Command("sql-new", "creates a new sql migration script")
+		upCommand = kingpin.Command("sql-up", "run migrate up")
+	)
+	switch kingpin.Parse() {
+	case newCommand.FullCommand():
+		createNewMigration()
+		return
+	case upCommand.FullCommand():
+		tryRunMigrations()
+		return
+	}
+
 	Initialise()
+}
+
+func tryRunMigrations() {
+	config := loadConfigFromJsonFile()
+	var (
+		user = kingpin.Flag("user",
+			"username required to connect to mysql").Default(config.sqlUser).Short('u').Required().String()
+		password = kingpin.Flag("password",
+			"password required to connect to mysql").Default(config.sqlPassword).Short('p').Required().String()
+		port = kingpin.Flag("port", "port number mysql is active on").Default(config.sqlPort).String()
+		database = kingpin.Flag("database", "database to connect to").Default(config.sqlDatabase).String()
+		host = kingpin.Flag("host", "host that mysql is running on").Default(config.sqlHost).String()
+		dryRun = kingpin.Flag("dry-run", "runs the migrations in 'ISOLATION UNCOMMITTED' mode to test them").Bool()
+		autoByPass = kingpin.Flag("auto-bypass", "bypass problematic migrations -> record them as if they were completed.").Bool()
+		verbose = kingpin.Flag("verbose", "make more noise").Default("false").Short('v').Bool()
+	)
+	if *verbose {
+		printOutMigrations()
+	}
+	if requiredFieldsAreEmpty(*user, *password, *database) {
+		color.Red.Println("You are required to provide a sql user, password and database name, either as an argument or environment variable")
+		fmt.Println(`e.g: mysql-migrator -sql-up -sql-database="doggy_db" -sql-user="doggo" -sql-password="le-woof"`)
+		os.Exit(1)
+	}
+	runMigrations(DatabaseOptions{
+		sqlUser:     *user,
+		sqlPassword: *password,
+		sqlHost:     *host,
+		sqlPort:     *port,
+		sqlDatabase: *database,
+		dryRun:      *dryRun,
+		autoByPass:  *autoByPass,
+	})
 }
 
 func printOutMigrations() {

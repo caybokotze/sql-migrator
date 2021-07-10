@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	_ "github.com/go-sql-driver/mysql"
 	"io/ioutil"
 	"log"
 	"os"
@@ -34,7 +35,7 @@ type Package struct {
 }
 
 func createDbConnection(options DatabaseOptions) *sql.DB {
-	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s",
+	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?multiStatements=true&interpolateParams=true",
 		options.sqlUser,
 		options.sqlPassword,
 		options.sqlHost,
@@ -53,7 +54,6 @@ func command(dbInstance *sql.DB, command string) error {
 		panic(txErr.Error())
 	}
 	prep, prepErr := transaction.Prepare(command)
-	defer prep.Close()
 	if prepErr != nil {
 		panic(prepErr.Error())
 	}

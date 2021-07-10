@@ -37,7 +37,6 @@ func createNewMigration() {
 	color.Blue.Println("To run migrations use -sql-up=true flag option.")
 }
 
-
 func getTimestampAsString() string {
 	return time.Now().Format("20060102150405")
 }

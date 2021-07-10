@@ -24,10 +24,10 @@
 {
   "name": "sql-migration-runner",
   "version": "1.0.0",
-  "description": "It migrates migrations...",
+  "description": "This is the package.json file for the migration runner executable to maintain variables and make them easily editable",
   "scripts": {
-    "sql-up": "mysql-migrator.exe -sql-up=true -sql-user=dbuser -sql-password=dbpassword -sql-host=localhost -sql-port=3306 -sql-database=demodb",
-    "sql-new": "mysql-migrator.exe -sql-new=true -sql-user=dbuser -sql-password=dbpassword -sql-host=localhost -sql-port=3306 -sql-database=demodb"
+    "sql-up": "mysql-migrator.exe sql-up --user=sqltracking --password=sqltracking --host=localhost --port=3306 --database=demodb",
+    "sql-new": "mysql-migrator.exe sql-new"
   },
   "sql-migrator-config": {
     "sqlUser": "sqltracking",

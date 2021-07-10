@@ -29,10 +29,9 @@ func createNewMigration() {
 	color.Green.Println("Migration was created successfully.")
 	color.Cyan.Print("Do you want to open the migrations in VsCode? (y/n): ")
 	option, _ := reader.ReadString('\n')
-	option = strings.ToLower(option)
-	option = strings.TrimSpace(option)
+	option = strings.ToLower(strings.TrimSpace(option))
 	if option == "y" || option == "yes" {
-		openFilesInVsCode(upScript, downScript)
+		openFilesInFileEditor(upScript, downScript)
 	}
 	color.Blue.Println("To run migrations use -sql-up=true flag option.")
 }

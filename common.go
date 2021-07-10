@@ -9,6 +9,8 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"runtime"
+	"strings"
 	"time"
 )
 
@@ -89,7 +91,7 @@ func loadConfigFromJsonFile() DatabaseOptions {
 	}
 	var jsonPackage Package
 	stringBytes, _ := ioutil.ReadAll(file)
-	defer file.Close()
+	_ = file.Close()
 	err = json.Unmarshal(stringBytes, &jsonPackage)
 	if err != nil {
 		panic("Could not unmarshal json file")
@@ -97,8 +99,34 @@ func loadConfigFromJsonFile() DatabaseOptions {
 	return jsonPackage.config
 }
 
-func openFilesInVsCode(upScript string, downScript string) {
-	cmd := exec.Command("code",
+func openFilesInFileEditor(upScript string, downScript string) {
+	var vsCodeIsAvailable = false
+	val, present := os.LookupEnv("path")
+	if present {
+		if strings.Contains(val, "VS Code") {
+			vsCodeIsAvailable = true
+		}
+	}
+	if vsCodeIsAvailable {
+		executeOSCommand("code", upScript, downScript)
+		return
+	}
+	// todo: refactor this out into separate files
+	if !vsCodeIsAvailable {
+		if runtime.GOOS == "windows" {
+			executeOSCommand("start", upScript, downScript)
+		}
+		if runtime.GOOS == "osx" {
+			executeOSCommand("start", upScript, downScript)
+		}
+		if runtime.GOOS == "linux" {
+			executeOSCommand("start", upScript, downScript)
+		}
+	}
+}
+
+func executeOSCommand(command, upScript, downScript string) {
+	cmd := exec.Command(command,
 		fmt.Sprintf("scripts/%s.sql", upScript),
 		fmt.Sprintf("scripts/%s.sql", downScript))
 	_ = cmd.Start()

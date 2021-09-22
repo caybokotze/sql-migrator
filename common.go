@@ -25,6 +25,12 @@ type DatabaseOptions struct {
 	Verbose bool
 }
 
+type ConnectionWithOptions struct {
+	Conn *sql.DB
+	DryRun bool
+	AutoByPass bool
+}
+
 type Schema struct {
 	id int64
 	name string
@@ -37,7 +43,7 @@ type Package struct {
 	DatabaseConfiguration DatabaseOptions `json:"sql-migrator-config"`
 }
 
-func createDbConnection(options DatabaseOptions) *sql.DB {
+func createDbConnection(options DatabaseOptions) ConnectionWithOptions {
 	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?multiStatements=true",
 		options.SqlUser,
 		options.SqlPassword,
@@ -48,22 +54,27 @@ func createDbConnection(options DatabaseOptions) *sql.DB {
 		log.Println(err.Error())
 		log.Fatal("Could not establish connection to the db.")
 	}
-	return db
+
+	return ConnectionWithOptions{
+		Conn: db,
+		DryRun: options.DryRun,
+		AutoByPass: options.AutoByPass,
+	}
 }
 
-func command(dbInstance *sql.DB, command string) error {
-	transaction, txErr := dbInstance.Begin()
+
+func command(dbConnectionWithOptions ConnectionWithOptions, command string) error {
+	transaction, txErr := dbConnectionWithOptions.Conn.Begin()
 	if txErr != nil {
-		panic(txErr.Error())
+		return txErr
 	}
-	prep, prepErr := transaction.Prepare(command)
-	if prepErr != nil {
-		panic(prepErr.Error())
-	}
-	_, execErr := prep.Exec()
+	_, execErr := transaction.Exec(command)
 	if execErr != nil {
+		return execErr
+	}
+	if dbConnectionWithOptions.DryRun {
 		_ = transaction.Rollback()
-		panic(execErr.Error())
+		return nil
 	}
 	err := transaction.Commit()
 	if err != nil {
@@ -73,8 +84,8 @@ func command(dbInstance *sql.DB, command string) error {
 	return nil
 }
 
-func query(dbInstance *sql.DB, query string)*sql.Rows {
-	result, err := dbInstance.Query(query)
+func query(dbConnectionWithOptions ConnectionWithOptions, query string)*sql.Rows {
+	result, err := dbConnectionWithOptions.Conn.Query(query)
 	if err != nil {
 		panic(err.Error())
 	}

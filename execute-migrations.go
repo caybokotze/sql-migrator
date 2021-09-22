@@ -1,7 +1,6 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/gookit/color"
@@ -83,7 +82,7 @@ func generateSchemaFromFileName(fileName string) Schema {
 
 func createSchemaVersionTable(options DatabaseOptions) {
 	db := createDbConnection(options)
-	defer db.Close()
+	defer db.Conn.Close()
 	err := command(db, "CREATE TABLE IF NOT EXISTS __schema_versioning ("+
 		"id BIGINT NOT NULL AUTO_INCREMENT, "+
 		"name VARCHAR(255) NULL, "+
@@ -96,7 +95,7 @@ func createSchemaVersionTable(options DatabaseOptions) {
 
 func executeMigrations(options DatabaseOptions, schemas []Schema) {
 	db := createDbConnection(options)
-	defer db.Close()
+	defer db.Conn.Close()
 	if len(schemas) == 0 {
 		color.Cyan.Println("All up to date...")
 		os.Exit(0)
@@ -140,14 +139,14 @@ func getSchemaDownScript(fileName string) string {
 	return fmt.Sprintf("%s_%s", fileName, "down.sql")
 }
 
-func insertSchemaVersion(db *sql.DB, schema Schema) {
+func insertSchemaVersion(dbConnectionWithOptions ConnectionWithOptions, schema Schema) {
 	// todo: make the table renaming possible for the user.
 	sqlText := fmt.Sprintf("INSERT INTO __schema_versioning VALUES (%d, '%s', '%s');",
 		schema.id,
 		schema.name,
 		schema.dateexecuted.Format("2006-01-02T15:04:05"))
 
-	err := command(db, sqlText)
+	err := command(dbConnectionWithOptions, sqlText)
 	if err != nil {
 		panic(err.Error())
 	}
@@ -155,7 +154,7 @@ func insertSchemaVersion(db *sql.DB, schema Schema) {
 
 func fetchMigrationsFromDb(details DatabaseOptions) []Schema {
 	db := createDbConnection(details)
-	defer db.Close()
+	defer db.Conn.Close()
 	results := query(db, "SELECT id, name, date_executed FROM __schema_versioning")
 
 	var schemas []Schema

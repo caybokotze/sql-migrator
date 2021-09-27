@@ -14,6 +14,8 @@ func TestThatNewMigrationFilesAreCreated(t *testing.T) {
 	}
 }
 
+
+
 //func TestThatSqlNewFlagIsTrueWhenProvided(t *testing.T) {
 //	os.Args = []string{"cmd", "-sql-new"}
 //	flag.Parse()

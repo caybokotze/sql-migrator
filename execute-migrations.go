@@ -44,9 +44,12 @@ func rollbackMigrations(options DatabaseOptions, rollbackId string) {
 		log.Fatal("Could not convert rollback id to a int 64.")
 	}
 	// reverse order...
-	sort.Slice(executedMigrations, func(i, j int) bool {
-		return executedMigrations[i].id > executedMigrations[j].id
-	})
+	if len(executedMigrations) > 1 {
+		sort.Slice(executedMigrations, func(i, j int) bool {
+			return executedMigrations[i].id > executedMigrations[j].id
+		})
+	}
+
 	var rollbackMigrationArray []Schema
 	var foundMigrationToRollbackTo = false
 	for _, schema := range executedMigrations {
@@ -64,7 +67,7 @@ func rollbackMigrations(options DatabaseOptions, rollbackId string) {
 				panic(err.Error())
 			}
 			removeSchemaVersion(db, schema)
-			color.Green.Println("Rolled back migration successfully.")
+			color.Green.Println(fmt.Sprintf("Rolled back migration %d_%s successfully.", schema.id, schema.name))
 		}
 	}
 	if !foundMigrationToRollbackTo {
@@ -191,7 +194,7 @@ func insertSchemaVersion(dbConnectionWithOptions ConnectionWithOptions, schema S
 }
 
 func removeSchemaVersion(dbConnectionWithOptions ConnectionWithOptions, schema Schema) {
-	sqlText := fmt.Sprintf("DELETE FROM %s WHERE id = %s;",
+	sqlText := fmt.Sprintf("DELETE FROM %s WHERE id = %d;",
 		dbConnectionWithOptions.MigrationTableName,
 		schema.id)
 	err := command(dbConnectionWithOptions, sqlText)

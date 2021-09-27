@@ -20,6 +20,11 @@
 ### Package.json example
 *The package.json file isn't required, but if you have node will save you the time of specifying all the flags manually each time.*
 
+### Features
+-[X] Run migrations
+-[X] Create new migrations
+-[ ] Rollback migrations
+
 ```json
 {
   "name": "sql-migration-runner",

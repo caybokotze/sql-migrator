@@ -16,6 +16,7 @@ func initialiseParameterOptions() {
 	var (
 		newCommand = kingpin.Command("sql-new", "creates a new sql migration script")
 		upCommand  = kingpin.Command("sql-up", "run migrate up")
+		rollbackCommand = kingpin.Command("rollback", "rollback a migration")
 	)
 	// Flags
 	config := loadConfigFromJsonFile()
@@ -32,12 +33,8 @@ func initialiseParameterOptions() {
 		verbose    = kingpin.Flag("verbose", "make more noise").Default("false").Short('v').Bool()
 	)
 
-	switch kingpin.Parse() {
-	case newCommand.FullCommand():
-		createNewMigration()
-		return
-	case upCommand.FullCommand():
-		tryRunMigrations(DatabaseOptions{
+	var buildDatabaseConfig = func() DatabaseOptions {
+		return DatabaseOptions{
 			SqlUser:     *user,
 			SqlPassword: *password,
 			SqlHost:     *host,
@@ -46,9 +43,24 @@ func initialiseParameterOptions() {
 			DryRun:      *dryRun,
 			AutoByPass:  *autoByPass,
 			Verbose:     *verbose,
-		})
+		}
+	}
+
+	switch kingpin.Parse() {
+	case newCommand.FullCommand():
+		createNewMigration()
+		return
+	case upCommand.FullCommand():
+		tryRunMigrations(buildDatabaseConfig())
+		return
+	case rollbackCommand.FullCommand():
+		tryRollbackMigrations(buildDatabaseConfig())
 		return
 	}
+}
+
+func tryRollbackMigrations(configuration DatabaseOptions) {
+	//
 }
 
 func tryRunMigrations(configuration DatabaseOptions) {
@@ -80,4 +92,3 @@ func requiredFieldsAreEmpty(sqlUser, sqlPassword, sqlDatabase string) bool {
 	}
 	return false
 }
-

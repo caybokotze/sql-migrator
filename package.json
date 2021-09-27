@@ -11,6 +11,7 @@
     "sqlPassword": "sqltracking",
     "sqlHost": "localhost",
     "sqlPort": "3306",
-    "sqlDatabase": "demodb"
+    "sqlDatabase": "demodb",
+    "migrationTableName": "__migrations"
   }
 }

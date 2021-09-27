@@ -28,8 +28,10 @@ func initialiseParameterOptions() {
 		port       = kingpin.Flag("port", "port number mysql is active on").Default(config.SqlPort).String()
 		database   = kingpin.Flag("database", "database to connect to").Default(config.SqlDatabase).String()
 		host       = kingpin.Flag("host", "host that mysql is running on").Default(config.SqlHost).String()
-		dryRun     = kingpin.Flag("dry-run", "runs the migrations in 'ISOLATION UNCOMMITTED' mode to test them").Default("false").Bool()
+		dryRun     = kingpin.Flag("dry-run", "run migrations without committing the transaction to test for any issues.").Default("false").Bool()
 		autoByPass = kingpin.Flag("auto-bypass", "bypass problematic migrations -> record them as if they were completed.").Default("false").Bool()
+		rollbackId = kingpin.Flag("rollback-id", "set the rollback id to rollback migrations to").Default("").String()
+		migrationTableName = kingpin.Flag("migration-table-name", "set name for migration table").Default(config.MigrationTableName).String()
 		verbose    = kingpin.Flag("verbose", "make more noise").Default("false").Short('v').Bool()
 	)
 
@@ -43,6 +45,7 @@ func initialiseParameterOptions() {
 			DryRun:      *dryRun,
 			AutoByPass:  *autoByPass,
 			Verbose:     *verbose,
+			MigrationTableName: *migrationTableName,
 		}
 	}
 
@@ -54,27 +57,23 @@ func initialiseParameterOptions() {
 		tryRunMigrations(buildDatabaseConfig())
 		return
 	case rollbackCommand.FullCommand():
-		tryRollbackMigrations(buildDatabaseConfig())
+		tryRollbackMigrations(buildDatabaseConfig(), *rollbackId)
 		return
 	}
 }
 
-func tryRollbackMigrations(configuration DatabaseOptions) {
-	//
+func tryRollbackMigrations(configuration DatabaseOptions, rollbackId string) {
+	if rollbackId == "" {
+		panic("Rollback Id must be specified")
+	}
+	rollbackMigrations(configuration, rollbackId)
 }
 
 func tryRunMigrations(configuration DatabaseOptions) {
 	if configuration.Verbose {
 		printOutMigrations()
 	}
-	if requiredFieldsAreEmpty(
-		configuration.SqlUser,
-		configuration.SqlPassword,
-		configuration.SqlDatabase) {
-		color.Red.Println("You are required to provide a sql user, password and database name, either as an argument or environment variable")
-		fmt.Println(`e.g: mysql-migrator -sql-up -sql-database="doggy_db" -sql-user="doggo" -sql-password="le-woof"`)
-		os.Exit(1)
-	}
+	checkForEmptyRequiredFields(configuration)
 	runMigrations(configuration)
 }
 
@@ -86,9 +85,10 @@ func printOutMigrations() {
 	}
 }
 
-func requiredFieldsAreEmpty(sqlUser, sqlPassword, sqlDatabase string) bool {
-	if sqlUser == "" || sqlPassword == "" || sqlDatabase == "" {
-		return true
+func checkForEmptyRequiredFields(configuration DatabaseOptions) {
+	if configuration.SqlUser == "" || configuration.SqlPassword == "" || configuration.SqlDatabase == "" {
+		color.Red.Println("You are required to provide a sql user, password and database name, either as an argument or environment variable")
+		fmt.Println(`e.g: mysql-migrator -sql-up -sql-database="doggy_db" -sql-user="doggo" -sql-password="le-woof"`)
+		os.Exit(1)
 	}
-	return false
 }

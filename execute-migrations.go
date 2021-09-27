@@ -16,15 +16,15 @@ import (
 
 func runMigrations(
 	details DatabaseOptions) {
-	createSchemaVersionTable(details)
+	createSchemaVersionTableIfNotExist(details)
 	migrations := findMigrationToExecute(details)
 	executeMigrations(details, migrations)
 }
 
-func findMigrationToExecute(details DatabaseOptions) []Schema {
-	executedMigrations := fetchMigrationsFromDb(details)
+func findMigrationToExecute(options DatabaseOptions) []Schema {
+	executedMigrations := fetchMigrationsFromDb(options)
 	allFileMigrations := getArrayOfMigrationFilesWithoutDuplicates()
-	return findUniqueMigrations(allFileMigrations, executedMigrations)
+	return findUnexecutedMigrations(allFileMigrations, executedMigrations)
 }
 
 func getArrayOfMigrationFilesWithoutDuplicates() []Schema {
@@ -35,6 +35,42 @@ func getArrayOfMigrationFilesWithoutDuplicates() []Schema {
 	}
 	schemas = removeDuplicateSchemas(schemas)
 	return schemas
+}
+
+func rollbackMigrations(options DatabaseOptions, rollbackId string) {
+	executedMigrations := fetchMigrationsFromDb(options)
+	var rollbackIdAsInt, err = strconv.ParseInt(rollbackId, 10, 64)
+	if err != nil {
+		log.Fatal("Could not convert rollback id to a int 64.")
+	}
+	// reverse order...
+	sort.Slice(executedMigrations, func(i, j int) bool {
+		return executedMigrations[i].id > executedMigrations[j].id
+	})
+	var rollbackMigrationArray []Schema
+	var foundMigrationToRollbackTo = false
+	for _, schema := range executedMigrations {
+		rollbackMigrationArray = append(rollbackMigrationArray, schema)
+		if schema.id == rollbackIdAsInt {
+			foundMigrationToRollbackTo = true
+			break
+		}
+	}
+	if foundMigrationToRollbackTo {
+		for _, schema := range rollbackMigrationArray {
+			db := createDbConnection(options)
+			err := command(db, readSchemaContent(schema, false))
+			if err != nil {
+				panic(err.Error())
+			}
+			removeSchemaVersion(db, schema)
+			color.Green.Println("Rolled back migration successfully.")
+		}
+	}
+	if !foundMigrationToRollbackTo {
+		color.Cyan.Println("Cannot rollback to this migration.")
+		os.Exit(0)
+	}
 }
 
 func removeDuplicateSchemas(schemas []Schema) []Schema {
@@ -52,7 +88,7 @@ func removeDuplicateSchemas(schemas []Schema) []Schema {
 	return unique
 }
 
-func findUniqueMigrations(fileMigrations []Schema, dbMigrations []Schema) []Schema {
+func findUnexecutedMigrations(fileMigrations []Schema, dbMigrations []Schema) []Schema {
 	occurred := map[int64]bool{}
 	var unique []Schema
 	for _, v := range dbMigrations {
@@ -69,7 +105,7 @@ func findUniqueMigrations(fileMigrations []Schema, dbMigrations []Schema) []Sche
 
 func generateSchemaFromFileName(fileName string) Schema {
 	s := strings.Split(fileName, "_")
-	id, err := strconv.ParseInt(s[0], 0, 64)
+	id, err := strconv.ParseInt(s[0], 10, 64)
 	if err != nil {
 		panic("id in file string can not be converted to integer")
 	}
@@ -80,10 +116,10 @@ func generateSchemaFromFileName(fileName string) Schema {
 	}
 }
 
-func createSchemaVersionTable(options DatabaseOptions) {
+func createSchemaVersionTableIfNotExist(options DatabaseOptions) {
 	db := createDbConnection(options)
 	defer db.Conn.Close()
-	err := command(db, "CREATE TABLE IF NOT EXISTS __schema_versioning ("+
+	err := command(db, fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (", options.MigrationTableName)+
 		"id BIGINT NOT NULL AUTO_INCREMENT, "+
 		"name VARCHAR(255) NULL, "+
 		"date_executed DATETIME DEFAULT CURRENT_TIMESTAMP, "+
@@ -100,11 +136,8 @@ func executeMigrations(options DatabaseOptions, schemas []Schema) {
 		color.Cyan.Println("All up to date...")
 		os.Exit(0)
 	}
-	sort.Slice(schemas, func(i, j int) bool {
-		return schemas[i].id < schemas[j].id
-	})
 	for _, s := range schemas {
-		err := command(db, readSchemaContent(s))
+		err := command(db, readSchemaContent(s, true))
 		// todo: Code to handle autoByPass...
 		if err != nil {
 			panic(err)
@@ -114,17 +147,22 @@ func executeMigrations(options DatabaseOptions, schemas []Schema) {
 	}
 }
 
-func readSchemaContent(schema Schema) string {
-	fileName := getSchemaUpScript(getSchemaFileName(schema))
+func readSchemaContent(schema Schema, isUp bool) string {
+	var fileName = ""
+	if isUp {
+		fileName = getSchemaUpScript(getSchemaFileName(schema))
+	}
+	if !isUp {
+		fileName = getSchemaDownScript(getSchemaFileName(schema))
+	}
 	content, err := ioutil.ReadFile(fmt.Sprintf("./scripts/%s", fileName))
+	if len(strings.TrimSpace(string(content))) == 0 {
+		log.Fatalf("The migration file %s is empty", fileName)
+	}
 	if err != nil {
 		log.Fatal(fmt.Sprintf("Could not open file, %s", fileName))
 	}
 	return string(content)
-}
-
-func backtrackMigrations() {
-	// todo: Code to roll back migrations
 }
 
 func getSchemaFileName(schema Schema) string {
@@ -140,8 +178,8 @@ func getSchemaDownScript(fileName string) string {
 }
 
 func insertSchemaVersion(dbConnectionWithOptions ConnectionWithOptions, schema Schema) {
-	// todo: make the table renaming possible for the user.
-	sqlText := fmt.Sprintf("INSERT INTO __schema_versioning VALUES (%d, '%s', '%s');",
+	sqlText := fmt.Sprintf("INSERT INTO %s VALUES (%d, '%s', '%s');",
+		dbConnectionWithOptions.MigrationTableName,
 		schema.id,
 		schema.name,
 		schema.dateexecuted.Format("2006-01-02T15:04:05"))
@@ -152,10 +190,20 @@ func insertSchemaVersion(dbConnectionWithOptions ConnectionWithOptions, schema S
 	}
 }
 
+func removeSchemaVersion(dbConnectionWithOptions ConnectionWithOptions, schema Schema) {
+	sqlText := fmt.Sprintf("DELETE FROM %s WHERE id = %s;",
+		dbConnectionWithOptions.MigrationTableName,
+		schema.id)
+	err := command(dbConnectionWithOptions, sqlText)
+	if err != nil {
+		panic(err.Error())
+	}
+}
+
 func fetchMigrationsFromDb(details DatabaseOptions) []Schema {
 	db := createDbConnection(details)
 	defer db.Conn.Close()
-	results := query(db, "SELECT id, name, date_executed FROM __schema_versioning")
+	results := query(db, fmt.Sprintf("SELECT id, name, date_executed FROM %s;", details.MigrationTableName))
 
 	var schemas []Schema
 
@@ -166,12 +214,18 @@ func fetchMigrationsFromDb(details DatabaseOptions) []Schema {
 		if err != nil {
 			panic(err.Error())
 		}
-		expectedTime, error := dateExecuted.Parse()
-		if error != nil {
+		expectedTime, dateErr := dateExecuted.Parse()
+		if dateErr != nil {
 			panic("The datetime was in an unexpected format. expected: YYYY-MM-DD hh:mm:ss")
 		}
 		schema.dateexecuted = expectedTime
 		schemas = append(schemas, schema)
 	}
+	if len(schemas) > 1 {
+		sort.Slice(schemas, func(i, j int) bool {
+			return schemas[i].id < schemas[j].id
+		})
+	}
+
 	return schemas
 }

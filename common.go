@@ -20,8 +20,9 @@ type DatabaseOptions struct {
 	SqlHost     string `json:"sqlHost"`
 	SqlPort     string `json:"sqlPort"`
 	SqlDatabase string `json:"sqlDatabase"`
-	DryRun      bool
-	AutoByPass  bool
+	DryRun      bool `json:"dryRun"`
+	AutoByPass  bool `json:"autoByPass"`
+	MigrationTableName string `json:"migrationTableName"`
 	Verbose bool
 }
 
@@ -29,6 +30,7 @@ type ConnectionWithOptions struct {
 	Conn *sql.DB
 	DryRun bool
 	AutoByPass bool
+	MigrationTableName string
 }
 
 type Schema struct {
@@ -59,6 +61,7 @@ func createDbConnection(options DatabaseOptions) ConnectionWithOptions {
 		Conn: db,
 		DryRun: options.DryRun,
 		AutoByPass: options.AutoByPass,
+		MigrationTableName: options.MigrationTableName,
 	}
 }
 
@@ -108,6 +111,9 @@ func loadConfigFromJsonFile() DatabaseOptions {
 	if err != nil {
 		panic("Could not unmarshal json file")
 	}
+	if jsonPackage.DatabaseConfiguration.MigrationTableName == "" {
+		jsonPackage.DatabaseConfiguration.MigrationTableName = "__db_migrations"
+	}
 	return jsonPackage.DatabaseConfiguration
 }
 
@@ -142,16 +148,4 @@ func executeOSCommand(command, upScript, downScript string) {
 		fmt.Sprintf("scripts/%s.sql", upScript),
 		fmt.Sprintf("scripts/%s.sql", downScript))
 	_ = cmd.Start()
-}
-
-func removeFromSlice(slice []Schema, s Schema) []Schema {
-	return append(slice[:s.id], slice[s.id+1:]...)
-}
-
-func parseIdDateToDate(str string) time.Time {
-	t, err := time.Parse("20060102150405", str)
-	if err != nil {
-		panic(err.Error())
-	}
-	return t
 }

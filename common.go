@@ -73,6 +73,7 @@ func command(dbConnectionWithOptions ConnectionWithOptions, command string) erro
 	}
 	_, execErr := transaction.Exec(command)
 	if execErr != nil {
+		//_ = transaction.Rollback()
 		return execErr
 	}
 	if dbConnectionWithOptions.DryRun {

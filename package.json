@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "This is the package.json file for the migration runner executable to maintain variables and make them easily editable",
   "scripts": {
-    "sql-up": "sql-migrator.exe",
+    "sql-up": "sql-migrator.exe sql-up",
     "sql-new": "sql-migrator.exe sql-new"
   },
   "sql-migrator-config": {

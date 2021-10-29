@@ -140,6 +140,7 @@ func executeMigrations(options DatabaseOptions, schemas []Schema) {
 		os.Exit(0)
 	}
 	for _, s := range schemas {
+		color.Cyan.Println(fmt.Sprintf("Preparing to execute migration: %s", getSchemaFileName(s)))
 		err := command(db, readSchemaContent(s, true))
 		// todo: Code to handle autoByPass...
 		if err != nil {

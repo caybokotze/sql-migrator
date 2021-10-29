@@ -1,4 +1,4 @@
-module github.com/caybokotze/mysql-migrator
+module github.com/caybokotze/sql-migrator
 
 go 1.16
 
@@ -9,4 +9,5 @@ require (
 	github.com/caybokotze/go-testing-kit v0.0.0-20210824070752-b638fd0bbbf9
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/gookit/color v1.4.0
+	github.com/inconshreveable/go-update v0.0.0-20160112193335-8152e7eb6ccf
 )

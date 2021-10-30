@@ -113,13 +113,14 @@ func findUnexecutedMigrations(fileMigrations []Schema, dbMigrations []Schema) []
 
 func generateSchemaFromFileName(fileName string) Schema {
 	s := strings.Split(fileName, "_")
+	arrayLength := len(s)
 	id, err := strconv.ParseInt(s[0], 10, 64)
 	if err != nil {
 		panic("id in file string can not be converted to integer")
 	}
 	return Schema{
 		id:           id,
-		name:         s[1],
+		name:         strings.Join(s[1:arrayLength-1], ""),
 		dateExecuted: time.Now(),
 	}
 }

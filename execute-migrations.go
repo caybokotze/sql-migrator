@@ -37,6 +37,11 @@ func getArrayOfMigrationFilesWithoutDuplicates() []Schema {
 	return schemas
 }
 
+/*
+	Summary: Fetches the migrations in the db which have already executed.
+	Reverse the order of those migrations.
+	Execute the down scripts for those migrations until the rollbackId is matched.
+ */
 func rollbackMigrations(options DatabaseOptions, rollbackId string) {
 	executedMigrations := fetchMigrationsFromDb(options)
 	var rollbackIdAsInt, err = strconv.ParseInt(rollbackId, 10, 64)
@@ -115,7 +120,7 @@ func generateSchemaFromFileName(fileName string) Schema {
 	return Schema{
 		id:           id,
 		name:         s[1],
-		dateexecuted: time.Now(),
+		dateExecuted: time.Now(),
 	}
 }
 
@@ -186,7 +191,7 @@ func insertSchemaVersion(dbConnectionWithOptions ConnectionWithOptions, schema S
 		dbConnectionWithOptions.MigrationTableName,
 		schema.id,
 		schema.name,
-		schema.dateexecuted.Format("2006-01-02T15:04:05"))
+		schema.dateExecuted.Format("2006-01-02T15:04:05"))
 
 	err := command(dbConnectionWithOptions, sqlText)
 	if err != nil {
@@ -222,7 +227,7 @@ func fetchMigrationsFromDb(details DatabaseOptions) []Schema {
 		if dateErr != nil {
 			panic("The datetime was in an unexpected format. expected: YYYY-MM-DD hh:mm:ss")
 		}
-		schema.dateexecuted = expectedTime
+		schema.dateExecuted = expectedTime
 		schemas = append(schemas, schema)
 	}
 	if len(schemas) > 1 {

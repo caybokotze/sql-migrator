@@ -34,9 +34,9 @@ type ConnectionWithOptions struct {
 }
 
 type Schema struct {
-	id int64
-	name string
-	dateexecuted time.Time
+	id           int64 `faker:"boundary_start=5, boundary_end=10"`
+	name         string `faker:"len=25"`
+	dateExecuted time.Time `faker:"date"`
 }
 
 type rawTime []byte

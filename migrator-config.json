@@ -1,0 +1,11 @@
+{
+  "name": "sql-migration-runner",
+  "sql-migrator-config": {
+    "sqlUser": "sqltracking",
+    "sqlPassword": "SqlTracking#1234",
+    "sqlHost": "localhost",
+    "sqlPort": "3306",
+    "sqlDatabase": "sql-migrator",
+    "migrationTableName": "__migrations"
+  }
+}

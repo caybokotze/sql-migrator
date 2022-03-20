@@ -18,11 +18,11 @@ func main() {
 func initialiseParameterOptions() {
 	// Commands
 	var (
-		newCommand = kingpin.Command("sql-new", "creates a new sql migration script")
-		upCommand  = kingpin.Command("sql-up", "run migrate up")
+		newCommand      = kingpin.Command("sql-new", "creates a new sql migration script")
+		upCommand       = kingpin.Command("sql-up", "run migrate up")
 		rollbackCommand = kingpin.Command("rollback", "rollback a migration")
-		version = kingpin.Command("version", "display the version of the migration tool")
-		updateCommand = kingpin.Command("update", "auto-update the migration tool to include recent features")
+		version         = kingpin.Command("version", "display the version of the migration tool")
+		updateCommand   = kingpin.Command("update", "auto-update the migration tool to include recent features")
 	)
 	// Flags
 	config := loadConfigFromJsonFile()
@@ -34,7 +34,7 @@ func initialiseParameterOptions() {
 		port               = kingpin.Flag("port", "port number mysql is active on").Default(config.SqlPort).String()
 		database           = kingpin.Flag("database", "database to connect to").Default(config.SqlDatabase).String()
 		host               = kingpin.Flag("host", "host that mysql is running on").Default(config.SqlHost).String()
-		dryRun             = kingpin.Flag("dry-run", "run migrations without committing the transaction to test for any issues.").Default("false").Bool()
+		dryRun             = kingpin.Flag("dry-run", "run migrations without committing the transaction to tests for any issues.").Default("false").Bool()
 		autoByPass         = kingpin.Flag("auto-bypass", "bypass problematic migrations -> record them as if they were completed.").Default("false").Bool()
 		rollbackId         = kingpin.Flag("rollback-id", "set the rollback id to rollback migrations to").Default("").String()
 		migrationTableName = kingpin.Flag("migration-table-name", "set name for migration table").Default(config.MigrationTableName).String()
@@ -43,14 +43,14 @@ func initialiseParameterOptions() {
 
 	var buildDatabaseConfig = func() DatabaseOptions {
 		return DatabaseOptions{
-			SqlUser:     *user,
-			SqlPassword: *password,
-			SqlHost:     *host,
-			SqlPort:     *port,
-			SqlDatabase: *database,
-			DryRun:      *dryRun,
-			AutoByPass:  *autoByPass,
-			Verbose:     *verbose,
+			SqlUser:            *user,
+			SqlPassword:        *password,
+			SqlHost:            *host,
+			SqlPort:            *port,
+			SqlDatabase:        *database,
+			DryRun:             *dryRun,
+			AutoByPass:         *autoByPass,
+			Verbose:            *verbose,
 			MigrationTableName: *migrationTableName,
 		}
 	}
@@ -75,7 +75,6 @@ func initialiseParameterOptions() {
 		}
 		return
 	}
-
 }
 
 func doUpdate() error {

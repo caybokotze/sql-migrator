@@ -29,7 +29,7 @@
 {
   "name": "sql-migration-runner",
   "version": "1.0.0",
-  "description": "This is the package.json file for the migration runner executable to maintain variables and make them easily editable",
+  "description": "This is the migrator-config.json file for the migration runner executable to maintain variables and make them easily editable",
   "scripts": {
     "sql-up": "mysql-migrator.exe sql-up --user=sqltracking --password=sqltracking --host=localhost --port=3306 --database=demodb",
     "sql-new": "mysql-migrator.exe sql-new"

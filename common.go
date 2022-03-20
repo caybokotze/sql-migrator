@@ -15,21 +15,21 @@ import (
 )
 
 type DatabaseOptions struct {
-	SqlUser     string `json:"sqlUser"`
-	SqlPassword string `json:"sqlPassword"`
-	SqlHost     string `json:"sqlHost"`
-	SqlPort     string `json:"sqlPort"`
-	SqlDatabase string `json:"sqlDatabase"`
-	DryRun      bool `json:"dryRun"`
-	AutoByPass  bool `json:"autoByPass"`
+	SqlUser            string `json:"sqlUser"`
+	SqlPassword        string `json:"sqlPassword"`
+	SqlHost            string `json:"sqlHost"`
+	SqlPort            string `json:"sqlPort"`
+	SqlDatabase        string `json:"sqlDatabase"`
+	DryRun             bool   `json:"dryRun"`
+	AutoByPass         bool   `json:"autoByPass"`
 	MigrationTableName string `json:"migrationTableName"`
-	Verbose bool
+	Verbose            bool
 }
 
 type ConnectionWithOptions struct {
-	Conn *sql.DB
-	DryRun bool
-	AutoByPass bool
+	Conn               *sql.DB
+	DryRun             bool
+	AutoByPass         bool
 	MigrationTableName string
 }
 
@@ -58,13 +58,12 @@ func createDbConnection(options DatabaseOptions) ConnectionWithOptions {
 	}
 
 	return ConnectionWithOptions{
-		Conn: db,
-		DryRun: options.DryRun,
-		AutoByPass: options.AutoByPass,
+		Conn:               db,
+		DryRun:             options.DryRun,
+		AutoByPass:         options.AutoByPass,
 		MigrationTableName: options.MigrationTableName,
 	}
 }
-
 
 func command(dbConnectionWithOptions ConnectionWithOptions, command string) error {
 	transaction, txErr := dbConnectionWithOptions.Conn.Begin()
@@ -88,7 +87,7 @@ func command(dbConnectionWithOptions ConnectionWithOptions, command string) erro
 	return nil
 }
 
-func query(dbConnectionWithOptions ConnectionWithOptions, query string)*sql.Rows {
+func query(dbConnectionWithOptions ConnectionWithOptions, query string) *sql.Rows {
 	result, err := dbConnectionWithOptions.Conn.Query(query)
 	if err != nil {
 		panic(err.Error())
@@ -101,9 +100,9 @@ func (t rawTime) Parse() (time.Time, error) {
 }
 
 func loadConfigFromJsonFile() DatabaseOptions {
-	file, err := os.Open("package.json")
+	file, err := os.Open("migrator-config.json")
 	if err != nil {
-		panic("Could not open package.json file")
+		panic("Could not open migrator-config.json file")
 	}
 	var jsonPackage Package
 	stringBytes, _ := ioutil.ReadAll(file)

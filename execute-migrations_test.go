@@ -9,7 +9,7 @@ import (
 
 /*
 When migrations are being executed
- */
+*/
 func TestThatMigrationsPersistToTheDb(t *testing.T) {
 	schema, err := createRandomSchema()
 	if err != nil {
@@ -21,7 +21,7 @@ func TestThatMigrationsPersistToTheDb(t *testing.T) {
 }
 
 func TestThatGenerateSchemaFromFileDoesCreateSchemaFromFile(t *testing.T) {
-	testStrings := []string {
+	testStrings := []string{
 		"20211029162223_SomeNewMigrationFileName_up",
 		"20211029162223_SomeNewMigrationFileName_down",
 		"20211029162223_Some_New_Migration_File_Name_up",
@@ -30,7 +30,7 @@ func TestThatGenerateSchemaFromFileDoesCreateSchemaFromFile(t *testing.T) {
 	for _, s := range testStrings {
 		var result = generateSchemaFromFileName(s)
 		if result.dateExecuted != time.Now() {
-			t.Error("The test failed because the time that was set was wrong.")
+			t.Error("The tests failed because the time that was set was wrong.")
 		}
 		if result.id == 0 {
 			t.Error("The id is wrong")
@@ -43,6 +43,11 @@ func TestThatGenerateSchemaFromFileDoesCreateSchemaFromFile(t *testing.T) {
 		}
 	}
 }
+
+// Given Migration > When Containing Multiple Lines >
+//func ShouldRollbackWhenMigrationFails(t *testing.T) {
+//	var file = tests.GetJsonConfigFile()
+//}
 
 func createRandomSchema() (Schema, error) {
 	schema := Schema{}

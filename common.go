@@ -24,6 +24,7 @@ type DatabaseOptions struct {
 	AutoByPass         bool   `json:"autoByPass"`
 	MigrationTableName string `json:"migrationTableName"`
 	Verbose            bool
+	ConfigFileName     string
 }
 
 type ConnectionWithOptions struct {
@@ -99,10 +100,13 @@ func (t rawTime) Parse() (time.Time, error) {
 	return time.Parse("2006-01-02 15:04:05", string(t))
 }
 
-func loadConfigFromJsonFile() DatabaseOptions {
-	file, err := os.Open("migrator-config.json")
+func loadConfigFromJsonFile(fileName string) DatabaseOptions {
+	if fileName == "" {
+		panic("The specified file name can not be empty")
+	}
+	file, err := os.Open(fileName)
 	if err != nil {
-		panic("Could not open migrator-config.json file")
+		log.Panicf("Could not open %s file", fileName)
 	}
 	var jsonPackage Package
 	stringBytes, _ := ioutil.ReadAll(file)

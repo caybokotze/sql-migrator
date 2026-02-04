@@ -4,14 +4,15 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"os/exec"
 	"runtime"
 	"strings"
 	"time"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
 type DatabaseOptions struct {
@@ -25,6 +26,7 @@ type DatabaseOptions struct {
 	MigrationTableName string `json:"migrationTableName"`
 	Verbose            bool
 	ConfigFileName     string
+	MigrationDirectory string
 }
 
 type ConnectionWithOptions struct {
@@ -102,54 +104,50 @@ func (t rawTime) Parse() (time.Time, error) {
 
 func loadConfigFromJsonFile(fileName string) DatabaseOptions {
 	if fileName == "" {
-		panic("The specified file name can not be empty")
+		log.Fatal("The specified configuration file name cannot be empty")
 	}
 	file, err := os.Open(fileName)
 	if err != nil {
-		log.Panicf("Could not open %s file", fileName)
+		log.Fatalf("Could not open configuration file '%s': %s", fileName, err.Error())
 	}
+	defer file.Close()
+
 	var jsonPackage Package
-	stringBytes, _ := ioutil.ReadAll(file)
-	_ = file.Close()
-	err = json.Unmarshal(stringBytes, &jsonPackage)
+	content, err := io.ReadAll(file)
 	if err != nil {
-		panic("Could not unmarshal json file")
+		log.Fatalf("Could not read configuration file '%s': %s", fileName, err.Error())
+	}
+	if err = json.Unmarshal(content, &jsonPackage); err != nil {
+		log.Fatalf("Could not parse configuration file '%s': %s", fileName, err.Error())
 	}
 	if jsonPackage.DatabaseConfiguration.MigrationTableName == "" {
-		jsonPackage.DatabaseConfiguration.MigrationTableName = "__db_migrations"
+		jsonPackage.DatabaseConfiguration.MigrationTableName = "__migrations"
 	}
 	return jsonPackage.DatabaseConfiguration
 }
 
-func openFilesInFileEditor(upScript string, downScript string) {
-	var vsCodeIsAvailable = false
-	val, present := os.LookupEnv("path")
-	if present {
-		if strings.Contains(val, "VS Code") {
-			vsCodeIsAvailable = true
-		}
-	}
-	if vsCodeIsAvailable {
-		executeOSCommand("code", upScript, downScript)
+func openFilesInFileEditor(upScript, downScript, migrationDirectory string) {
+	upPath := fmt.Sprintf("%s/%s.sql", migrationDirectory, upScript)
+	downPath := fmt.Sprintf("%s/%s.sql", migrationDirectory, downScript)
+
+	// Check if VS Code is available in PATH
+	if path, present := os.LookupEnv("path"); present && strings.Contains(path, "VS Code") {
+		cmd := exec.Command("code", upPath, downPath)
+		_ = cmd.Start()
 		return
 	}
-	// todo: refactor this out into separate files
-	if !vsCodeIsAvailable {
-		if runtime.GOOS == "windows" {
-			executeOSCommand("start", upScript, downScript)
-		}
-		if runtime.GOOS == "osx" {
-			executeOSCommand("start", upScript, downScript)
-		}
-		if runtime.GOOS == "linux" {
-			executeOSCommand("start", upScript, downScript)
-		}
-	}
-}
 
-func executeOSCommand(command, upScript, downScript string) {
-	cmd := exec.Command(command,
-		fmt.Sprintf("scripts/%s.sql", upScript),
-		fmt.Sprintf("scripts/%s.sql", downScript))
+	// Fall back to platform-specific default editor
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", "", upPath)
+	case "darwin":
+		cmd = exec.Command("open", upPath, downPath)
+	case "linux":
+		cmd = exec.Command("xdg-open", upPath)
+	default:
+		return
+	}
 	_ = cmd.Start()
 }

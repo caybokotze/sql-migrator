@@ -2,14 +2,17 @@ package main
 
 import (
 	"fmt"
-	"github.com/alecthomas/kingpin"
-	"github.com/gookit/color"
-	"github.com/inconshreveable/go-update"
-	_ "github.com/inconshreveable/go-update"
 	"log"
 	"net/http"
 	"os"
+	"strings"
+
+	"github.com/alecthomas/kingpin"
+	"github.com/gookit/color"
+	"github.com/inconshreveable/go-update"
 )
+
+const version = "1.2.0"
 
 func main() {
 	initialiseParameterOptions()
@@ -19,26 +22,29 @@ func initialiseParameterOptions() {
 	// Commands
 	var (
 		newCommand      = kingpin.Command("sql-new", "creates a new sql migration script")
-		upCommand       = kingpin.Command("sql-up", "run migrate up")
-		rollbackCommand = kingpin.Command("rollback", "rollback a migration")
-		version         = kingpin.Command("version", "display the version of the migration tool")
-		updateCommand   = kingpin.Command("update", "auto-update the migration tool to include recent features")
+		upCommand       = kingpin.Command("sql-up", "run pending migrations")
+		rollbackCommand = kingpin.Command("rollback", "rollback migrations to a specific migration ID (inclusive)")
+		versionCommand  = kingpin.Command("version", "display the version of the migration tool")
+		updateCommand   = kingpin.Command("update", "auto-update the migration tool from GitHub releases")
 	)
+
+	// Rollback command argument
+	var rollbackTargetId = rollbackCommand.Arg("migration-id", "the migration ID (timestamp) to rollback to (inclusive)").Required().String()
 
 	// Flags
 	var fileName = kingpin.Flag("configuration-file", "set configuration file name").Default("migrator-config.json").String()
+	var scriptDirectory = kingpin.Flag("migration-directory", "set the directory where the migration scripts can be found").Default("./scripts/").String()
 
 	var (
 		user = kingpin.Flag("user",
 			"username required to connect to mysql").Default("sqltracking").Short('u').String()
 		password = kingpin.Flag("password",
-			"password required to connect to mysql").Default("").Short('p').String()
+			"password required to connect to mysql. Passwords can also be provided as environment variables. Use `ENV:NameOfVariable` formatting...").Default("").Short('p').String()
 		port               = kingpin.Flag("port", "port number mysql is active on").Default("3306").String()
 		database           = kingpin.Flag("database", "database to connect to").Default("").String()
 		host               = kingpin.Flag("host", "host that mysql is running on").Default("localhost").String()
 		dryRun             = kingpin.Flag("dry-run", "run migrations without committing the transaction to tests for any issues.").Default("false").Bool()
 		autoByPass         = kingpin.Flag("auto-bypass", "bypass problematic migrations -> record them as if they were completed.").Default("false").Bool()
-		rollbackId         = kingpin.Flag("rollback-id", "set the rollback id to rollback migrations to").Default("").String()
 		migrationTableName = kingpin.Flag("migration-table-name", "set name for migration table").Default("__migrations").String()
 		verbose            = kingpin.Flag("verbose", "make more noise").Default("false").Bool()
 	)
@@ -56,6 +62,21 @@ func initialiseParameterOptions() {
 				password = &config.SqlPassword
 			}
 		}
+		if *password != "" {
+			if strings.HasPrefix(*password, "ENV:") {
+				envVariableValue := os.Getenv(strings.SplitN(*password, ":", 2)[1])
+				password = &envVariableValue
+				visible := password
+
+				if len(*password) > 5 {
+					hiddenPart := strings.Repeat("*", len(*password)-5)
+					tempVisible := fmt.Sprintf("%s%s", (*password)[:5], hiddenPart)
+					visible = &tempVisible
+				}
+
+				fmt.Println("Using environment variable password with value: " + *visible)
+			}
+		}
 		if *host == "localhost" {
 			if config.SqlHost != "" {
 				host = &config.SqlHost
@@ -71,6 +92,7 @@ func initialiseParameterOptions() {
 				database = &config.SqlDatabase
 			}
 		}
+
 		if *migrationTableName == "__migrations" {
 			if config.MigrationTableName != "" {
 				migrationTableName = &config.MigrationTableName
@@ -88,21 +110,22 @@ func initialiseParameterOptions() {
 			Verbose:            *verbose,
 			MigrationTableName: *migrationTableName,
 			ConfigFileName:     *fileName,
+			MigrationDirectory: *scriptDirectory,
 		}
 	}
 
 	switch kingpin.Parse() {
 	case newCommand.FullCommand():
-		createNewMigration()
+		createNewMigration(*scriptDirectory)
 		return
 	case upCommand.FullCommand():
 		tryRunMigrations(buildDatabaseConfig())
 		return
 	case rollbackCommand.FullCommand():
-		tryRollbackMigrations(buildDatabaseConfig(), *rollbackId)
+		tryRollbackMigrations(buildDatabaseConfig(), *rollbackTargetId)
 		return
-	case version.FullCommand():
-		fmt.Println("Version: 1.1.2")
+	case versionCommand.FullCommand():
+		fmt.Printf("sql-migrator version %s\n", version)
 		return
 	case updateCommand.FullCommand():
 		err := doUpdate()
@@ -131,9 +154,7 @@ func doUpdate() error {
 }
 
 func tryRollbackMigrations(configuration DatabaseOptions, rollbackId string) {
-	if rollbackId == "" {
-		panic("Rollback Id must be specified")
-	}
+	checkForEmptyRequiredFields(configuration)
 	rollbackMigrations(configuration, rollbackId)
 }
 

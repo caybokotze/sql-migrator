@@ -2,88 +2,108 @@ package main
 
 import (
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
-	"github.com/gookit/color"
-	"io/ioutil"
 	"log"
 	"os"
-	_ "reflect"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gookit/color"
 )
 
-func runMigrations(
-	details DatabaseOptions) {
-	createSchemaVersionTableIfNotExist(details)
-	migrations := findMigrationToExecute(details)
-	executeMigrations(details, migrations)
+func runMigrations(options DatabaseOptions) {
+	createSchemaVersionTableIfNotExist(options)
+	migrations := findMigrationToExecute(options)
+	executeMigrations(options, migrations)
 }
 
 func findMigrationToExecute(options DatabaseOptions) []Schema {
 	executedMigrations := fetchMigrationsFromDb(options)
-	allFileMigrations := getArrayOfMigrationFilesWithoutDuplicates()
+	allFileMigrations := getArrayOfMigrationFilesWithoutDuplicates(options)
 	return findUnexecutedMigrations(allFileMigrations, executedMigrations)
 }
 
-func getArrayOfMigrationFilesWithoutDuplicates() []Schema {
-	items, _ := ioutil.ReadDir("./scripts/")
+func getArrayOfMigrationFilesWithoutDuplicates(options DatabaseOptions) []Schema {
+	items, err := os.ReadDir(options.MigrationDirectory)
+	if err != nil {
+		log.Fatalf("Could not read migration directory '%s': %s", options.MigrationDirectory, err.Error())
+	}
 	var schemas []Schema
 	for _, item := range items {
+		if item.IsDir() {
+			continue
+		}
 		schemas = append(schemas, generateSchemaFromFileName(item.Name()))
 	}
 	schemas = removeDuplicateSchemas(schemas)
 	return schemas
 }
 
-/*
-	Summary: Fetches the migrations in the db which have already executed.
-	Reverse the order of those migrations.
-	Execute the down scripts for those migrations until the rollbackId is matched.
- */
+// rollbackMigrations fetches executed migrations from the database,
+// reverses their order, and executes down scripts from the most recent
+// migration down to and including the specified rollbackId.
 func rollbackMigrations(options DatabaseOptions, rollbackId string) {
 	executedMigrations := fetchMigrationsFromDb(options)
-	var rollbackIdAsInt, err = strconv.ParseInt(rollbackId, 10, 64)
-	if err != nil {
-		log.Fatal("Could not convert rollback id to a int 64.")
-	}
-	// reverse order...
-	if len(executedMigrations) > 1 {
-		sort.Slice(executedMigrations, func(i, j int) bool {
-			return executedMigrations[i].id > executedMigrations[j].id
-		})
+	if len(executedMigrations) == 0 {
+		color.Cyan.Println("No migrations to rollback.")
+		return
 	}
 
-	var rollbackMigrationArray []Schema
-	var foundMigrationToRollbackTo = false
+	rollbackIdAsInt, err := strconv.ParseInt(rollbackId, 10, 64)
+	if err != nil {
+		log.Fatalf("Invalid rollback ID '%s': must be a valid migration timestamp.", rollbackId)
+	}
+
+	// Sort in descending order (most recent first)
+	sort.Slice(executedMigrations, func(i, j int) bool {
+		return executedMigrations[i].id > executedMigrations[j].id
+	})
+
+	// Collect migrations to rollback (from most recent to target, inclusive)
+	var migrationsToRollback []Schema
 	for _, schema := range executedMigrations {
-		rollbackMigrationArray = append(rollbackMigrationArray, schema)
+		migrationsToRollback = append(migrationsToRollback, schema)
 		if schema.id == rollbackIdAsInt {
-			foundMigrationToRollbackTo = true
 			break
 		}
 	}
-	if foundMigrationToRollbackTo {
-		for _, schema := range rollbackMigrationArray {
-			db := createDbConnection(options)
-			err := command(db, readSchemaContent(schema, false))
-			if err != nil {
-				panic(err.Error())
-			}
-			removeSchemaVersion(db, schema)
-			color.Green.Println(fmt.Sprintf("Rolled back migration %d_%s successfully.", schema.id, schema.name))
+
+	// Verify target migration was found
+	if len(migrationsToRollback) == 0 || migrationsToRollback[len(migrationsToRollback)-1].id != rollbackIdAsInt {
+		color.Red.Printf("Migration ID %d not found in executed migrations.\n", rollbackIdAsInt)
+		color.Cyan.Println("Available migrations:")
+		for _, m := range executedMigrations {
+			fmt.Printf("  %d_%s\n", m.id, m.name)
 		}
+		os.Exit(1)
 	}
-	if !foundMigrationToRollbackTo {
-		color.Cyan.Println("Cannot rollback to this migration.")
-		os.Exit(0)
+
+	// Create single database connection for all rollback operations
+	db := createDbConnection(options)
+	defer db.Conn.Close()
+
+	color.Cyan.Printf("Rolling back %d migration(s)...\n", len(migrationsToRollback))
+
+	for _, schema := range migrationsToRollback {
+		color.Cyan.Printf("Rolling back: %d_%s\n", schema.id, schema.name)
+
+		downScript := readSchemaContent(schema, false, options.MigrationDirectory)
+		if err := command(db, downScript); err != nil {
+			color.Red.Printf("Failed to rollback migration %d_%s: %s\n", schema.id, schema.name, err.Error())
+			os.Exit(1)
+		}
+
+		removeSchemaVersion(db, schema)
+		color.Green.Printf("Rolled back: %d_%s\n", schema.id, schema.name)
 	}
+
+	color.Green.Println("Rollback completed successfully.")
 }
 
 func removeDuplicateSchemas(schemas []Schema) []Schema {
 	var unique []Schema
-	primaryLoop:
+primaryLoop:
 	for _, v := range schemas {
 		for i, u := range unique {
 			if v.id == u.id {
@@ -96,19 +116,19 @@ func removeDuplicateSchemas(schemas []Schema) []Schema {
 	return unique
 }
 
-func findUnexecutedMigrations(fileMigrations []Schema, dbMigrations []Schema) []Schema {
-	occurred := map[int64]bool{}
-	var unique []Schema
-	for _, v := range dbMigrations {
-		occurred[v.id] = true
+func findUnexecutedMigrations(fileMigrations, dbMigrations []Schema) []Schema {
+	executed := make(map[int64]bool)
+	for _, m := range dbMigrations {
+		executed[m.id] = true
 	}
-	for _, v := range fileMigrations {
-		if occurred[v.id] == true {
-			continue
+
+	var pending []Schema
+	for _, m := range fileMigrations {
+		if !executed[m.id] {
+			pending = append(pending, m)
 		}
-		unique = append(unique, v)
 	}
-	return unique
+	return pending
 }
 
 func generateSchemaFromFileName(fileName string) Schema {
@@ -139,38 +159,52 @@ func createSchemaVersionTableIfNotExist(options DatabaseOptions) {
 }
 
 func executeMigrations(options DatabaseOptions, schemas []Schema) {
+	if len(schemas) == 0 {
+		color.Cyan.Println("All migrations are up to date.")
+		return
+	}
+
 	db := createDbConnection(options)
 	defer db.Conn.Close()
-	if len(schemas) == 0 {
-		color.Cyan.Println("All up to date...")
-		os.Exit(0)
-	}
-	for _, s := range schemas {
-		color.Cyan.Println(fmt.Sprintf("Preparing to execute migration: %s", getSchemaFileName(s)))
-		err := command(db, readSchemaContent(s, true))
-		// todo: Code to handle autoByPass...
-		if err != nil {
-			panic(err)
+
+	color.Cyan.Printf("Executing %d pending migration(s)...\n", len(schemas))
+
+	for _, schema := range schemas {
+		color.Cyan.Printf("Executing: %s\n", getSchemaFileName(schema))
+
+		upScript := readSchemaContent(schema, true, options.MigrationDirectory)
+		if err := command(db, upScript); err != nil {
+			if options.AutoByPass {
+				color.Yellow.Printf("Bypassing failed migration %s: %s\n", getSchemaFileName(schema), err.Error())
+				insertSchemaVersion(db, schema)
+				continue
+			}
+			color.Red.Printf("Failed to execute migration %s: %s\n", getSchemaFileName(schema), err.Error())
+			os.Exit(1)
 		}
-		insertSchemaVersion(db, s)
-		color.Green.Println(getSchemaFileName(s), "executed successfully...")
+
+		insertSchemaVersion(db, schema)
+		color.Green.Printf("Executed: %s\n", getSchemaFileName(schema))
 	}
+
+	color.Green.Println("All migrations executed successfully.")
 }
 
-func readSchemaContent(schema Schema, isUp bool) string {
-	var fileName = ""
+func readSchemaContent(schema Schema, isUp bool, migrationDirectory string) string {
+	var fileName string
 	if isUp {
 		fileName = getSchemaUpScript(getSchemaFileName(schema))
-	}
-	if !isUp {
+	} else {
 		fileName = getSchemaDownScript(getSchemaFileName(schema))
 	}
-	content, err := ioutil.ReadFile(fmt.Sprintf("./scripts/%s", fileName))
-	if len(strings.TrimSpace(string(content))) == 0 {
-		log.Fatalf("The migration file %s is empty", fileName)
-	}
+
+	filePath := fmt.Sprintf("%s/%s", migrationDirectory, fileName)
+	content, err := os.ReadFile(filePath)
 	if err != nil {
-		log.Fatal(fmt.Sprintf("Could not open file, %s", fileName))
+		log.Fatalf("Could not read file '%s': %s", filePath, err.Error())
+	}
+	if len(strings.TrimSpace(string(content))) == 0 {
+		log.Fatalf("The migration file '%s' is empty", fileName)
 	}
 	return string(content)
 }

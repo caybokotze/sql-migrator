@@ -12,7 +12,7 @@ import (
 	"github.com/inconshreveable/go-update"
 )
 
-const version = "1.2.0"
+const version = "1.3.0"
 
 func main() {
 	initialiseParameterOptions()
@@ -36,13 +36,19 @@ func initialiseParameterOptions() {
 	var scriptDirectory = kingpin.Flag("migration-directory", "set the directory where the migration scripts can be found").Default("./scripts/").String()
 
 	var (
+		driver = kingpin.Flag("driver",
+			"database driver to use: mysql (default) or postgres").Default("").String()
 		user = kingpin.Flag("user",
-			"username required to connect to mysql").Default("sqltracking").Short('u').String()
+			"username required to connect to the database").Default("sqltracking").Short('u').String()
 		password = kingpin.Flag("password",
-			"password required to connect to mysql. Passwords can also be provided as environment variables. Use `ENV:NameOfVariable` formatting...").Default("").Short('p').String()
-		port               = kingpin.Flag("port", "port number mysql is active on").Default("3306").String()
+			"password required to connect to the database. Passwords can also be provided as environment variables. Use `ENV:NameOfVariable` formatting...").Default("").Short('p').String()
+		port               = kingpin.Flag("port", "port number the database is active on (3306 for mysql, 5432 for postgres)").Default("").String()
 		database           = kingpin.Flag("database", "database to connect to").Default("").String()
-		host               = kingpin.Flag("host", "host that mysql is running on").Default("localhost").String()
+		host               = kingpin.Flag("host", "host that the database is running on").Default("localhost").String()
+		schema             = kingpin.Flag("schema", "postgres only: run migrations inside this schema (created if missing, tracking table lives inside it)").Default("").String()
+		sslMode            = kingpin.Flag("ssl-mode", "postgres only: sslmode for the connection (disable, require, verify-ca, verify-full)").Default("").String()
+		fanOut             = kingpin.Flag("fan-out", "postgres only: run against every schema returned by the schema discovery query").Default("false").Bool()
+		schemaQuery        = kingpin.Flag("schema-query", "postgres only: query that returns the schemas to fan out over (first column = schema name)").Default("").String()
 		dryRun             = kingpin.Flag("dry-run", "run migrations without committing the transaction to tests for any issues.").Default("false").Bool()
 		autoByPass         = kingpin.Flag("auto-bypass", "bypass problematic migrations -> record them as if they were completed.").Default("false").Bool()
 		migrationTableName = kingpin.Flag("migration-table-name", "set name for migration table").Default("__migrations").String()
@@ -52,6 +58,11 @@ func initialiseParameterOptions() {
 	var buildDatabaseConfig = func() DatabaseOptions {
 		config := loadConfigFromJsonFile(*fileName)
 
+		if *driver == "" {
+			if config.SqlDriver != "" {
+				driver = &config.SqlDriver
+			}
+		}
 		if *user == "sqltracking" {
 			if config.SqlUser != "" {
 				user = &config.SqlUser
@@ -82,7 +93,7 @@ func initialiseParameterOptions() {
 				host = &config.SqlHost
 			}
 		}
-		if *port == "3306" {
+		if *port == "" {
 			if config.SqlPort != "" {
 				port = &config.SqlPort
 			}
@@ -92,6 +103,21 @@ func initialiseParameterOptions() {
 				database = &config.SqlDatabase
 			}
 		}
+		if *schema == "" {
+			if config.SqlSchema != "" {
+				schema = &config.SqlSchema
+			}
+		}
+		if *sslMode == "" {
+			if config.SqlSslMode != "" {
+				sslMode = &config.SqlSslMode
+			}
+		}
+		if *schemaQuery == "" {
+			if config.SchemaQuery != "" {
+				schemaQuery = &config.SchemaQuery
+			}
+		}
 
 		if *migrationTableName == "__migrations" {
 			if config.MigrationTableName != "" {
@@ -99,12 +125,16 @@ func initialiseParameterOptions() {
 			}
 		}
 
-		return DatabaseOptions{
+		options := DatabaseOptions{
+			SqlDriver:          *driver,
 			SqlUser:            *user,
 			SqlPassword:        *password,
 			SqlHost:            *host,
 			SqlPort:            *port,
 			SqlDatabase:        *database,
+			SqlSchema:          *schema,
+			SqlSslMode:         *sslMode,
+			SchemaQuery:        *schemaQuery,
 			DryRun:             *dryRun,
 			AutoByPass:         *autoByPass,
 			Verbose:            *verbose,
@@ -112,6 +142,12 @@ func initialiseParameterOptions() {
 			ConfigFileName:     *fileName,
 			MigrationDirectory: *scriptDirectory,
 		}
+
+		if options.SqlPort == "" {
+			options.SqlPort = defaultPortForDriver(options.SqlDriver)
+		}
+
+		return options
 	}
 
 	switch kingpin.Parse() {
@@ -119,10 +155,27 @@ func initialiseParameterOptions() {
 		createNewMigration(*scriptDirectory)
 		return
 	case upCommand.FullCommand():
-		tryRunMigrations(buildDatabaseConfig())
+		options := buildDatabaseConfig()
+		checkForEmptyRequiredFields(options)
+		checkForConflictingSchemaFlags(options, *fanOut)
+		if *fanOut {
+			exitOnError(runFanOut(options, "sql-up", runMigrations))
+			return
+		}
+		exitOnError(runMigrations(options))
 		return
 	case rollbackCommand.FullCommand():
-		tryRollbackMigrations(buildDatabaseConfig(), *rollbackTargetId)
+		options := buildDatabaseConfig()
+		checkForEmptyRequiredFields(options)
+		checkForConflictingSchemaFlags(options, *fanOut)
+		targetId := *rollbackTargetId
+		if *fanOut {
+			exitOnError(runFanOut(options, "rollback "+targetId, func(schemaOptions DatabaseOptions) error {
+				return rollbackMigrations(schemaOptions, targetId)
+			}))
+			return
+		}
+		exitOnError(rollbackMigrations(options, targetId))
 		return
 	case versionCommand.FullCommand():
 		fmt.Printf("sql-migrator version %s\n", version)
@@ -133,6 +186,21 @@ func initialiseParameterOptions() {
 			log.Fatal("Could not update the application")
 		}
 		return
+	}
+}
+
+func defaultPortForDriver(driver string) string {
+	dialect, err := resolveDialect(driver)
+	if err == nil && dialect.DriverName() == DriverPostgres {
+		return "5432"
+	}
+	return "3306"
+}
+
+func exitOnError(err error) {
+	if err != nil {
+		color.Red.Println(err.Error())
+		os.Exit(1)
 	}
 }
 
@@ -153,31 +221,28 @@ func doUpdate() error {
 	return err
 }
 
-func tryRollbackMigrations(configuration DatabaseOptions, rollbackId string) {
-	checkForEmptyRequiredFields(configuration)
-	rollbackMigrations(configuration, rollbackId)
-}
-
-func tryRunMigrations(configuration DatabaseOptions) {
-	if configuration.Verbose {
-		printOutMigrations(configuration.ConfigFileName)
-	}
-	checkForEmptyRequiredFields(configuration)
-	runMigrations(configuration)
-}
-
-func printOutMigrations(fileName string) {
-	options := loadConfigFromJsonFile(fileName)
-	var migrationFiles = findMigrationToExecute(options)
-	for _, s := range migrationFiles {
-		fmt.Println(s.name, s.id)
-	}
-}
-
 func checkForEmptyRequiredFields(configuration DatabaseOptions) {
 	if configuration.SqlUser == "" || configuration.SqlPassword == "" || configuration.SqlDatabase == "" {
 		color.Red.Println("You are required to provide a sql user, password and database name, either as an argument or environment variable")
-		fmt.Println(`e.g: mysql-migrator -sql-up -sql-database="doggy_db" -sql-user="doggo" -sql-password="le-woof"`)
+		fmt.Println(`e.g: sql-migrator sql-up --database="doggy_db" --user="doggo" --password="le-woof"`)
 		os.Exit(1)
+	}
+	if _, err := resolveDialect(configuration.SqlDriver); err != nil {
+		color.Red.Println(err.Error())
+		os.Exit(1)
+	}
+}
+
+func checkForConflictingSchemaFlags(configuration DatabaseOptions, fanOut bool) {
+	if fanOut && configuration.SqlSchema != "" {
+		color.Red.Println("--schema and --fan-out cannot be combined: fan-out discovers its schemas with the schema query")
+		os.Exit(1)
+	}
+	if configuration.SqlSchema != "" || fanOut {
+		dialect, _ := resolveDialect(configuration.SqlDriver)
+		if dialect != nil && !dialect.SupportsSchemas() {
+			color.Red.Println("--schema and --fan-out require the postgres driver (--driver=postgres)")
+			os.Exit(1)
+		}
 	}
 }

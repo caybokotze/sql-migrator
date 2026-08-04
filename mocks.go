@@ -3,10 +3,10 @@ package main
 func createDbOptionsMock() DatabaseOptions {
 	return DatabaseOptions{
 		SqlUser:            "sqltracking",
-		SqlPassword:        "sqltracking",
+		SqlPassword:        "SqlTracking#1234",
 		SqlHost:            "localhost",
 		SqlPort:            "3306",
-		SqlDatabase:        "demodb",
+		SqlDatabase:        "sql-migrator",
 		DryRun:             false,
 		AutoByPass:         false,
 		MigrationTableName: "__migrations",

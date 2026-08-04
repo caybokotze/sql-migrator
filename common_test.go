@@ -1,21 +1,14 @@
 package main
 
 import "testing"
-import tk "github.com/caybokotze/go-testing-kit"
 
 func TestFetchConfiguration(t *testing.T) {
 	// arrange
-	var expected = createDbOptionsMock()
+	expected := createDbOptionsMock()
 	// act
-	var config = loadConfigFromJsonFile()
+	config := loadConfigFromJsonFile("migrator-config.json")
 	// assert
-	if !tk.Compare(config).To(expected) {
-		t.Fail()
+	if config != expected {
+		t.Errorf("expected %+v, got %+v", expected, config)
 	}
-}
-
-func TestCreateDbConnection(t *testing.T) {
-	// arrange
-	// act
-	// assert
 }

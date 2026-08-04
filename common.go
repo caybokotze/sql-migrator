@@ -13,14 +13,19 @@ import (
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/lib/pq"
 )
 
 type DatabaseOptions struct {
+	SqlDriver          string `json:"sqlDriver"`
 	SqlUser            string `json:"sqlUser"`
 	SqlPassword        string `json:"sqlPassword"`
 	SqlHost            string `json:"sqlHost"`
 	SqlPort            string `json:"sqlPort"`
 	SqlDatabase        string `json:"sqlDatabase"`
+	SqlSchema          string `json:"sqlSchema"`
+	SqlSslMode         string `json:"sqlSslMode"`
+	SchemaQuery        string `json:"schemaQuery"`
 	DryRun             bool   `json:"dryRun"`
 	AutoByPass         bool   `json:"autoByPass"`
 	MigrationTableName string `json:"migrationTableName"`
@@ -31,15 +36,44 @@ type DatabaseOptions struct {
 
 type ConnectionWithOptions struct {
 	Conn               *sql.DB
+	Dialect            Dialect
 	DryRun             bool
 	AutoByPass         bool
 	MigrationTableName string
 }
 
+// Schema represents one migration. Depending on where it was read from,
+// not every field is populated:
+//   - fileBase is set when the migration was found on disk
+//     (e.g. "20250319205322_Create_Users" — the exact file name minus the
+//     _up.sql/_down.sql suffix, underscores preserved)
+//   - scriptName is set when the migration was read from a postgres
+//     tracking table (the exact stored script_name)
+//   - name is the display name with underscores collapsed (legacy format,
+//     also what the mysql tracking table stores)
 type Schema struct {
 	id           int64
 	name         string
+	fileBase     string
+	scriptName   string
 	dateExecuted time.Time
+}
+
+// UpScriptName returns the file name of the up script, preferring the exact
+// name recorded in the database over one reconstructed from disk.
+func (s Schema) UpScriptName() string {
+	if s.scriptName != "" {
+		return s.scriptName
+	}
+	return s.fileBase + "_up.sql"
+}
+
+// DisplayName renders the migration for log output.
+func (s Schema) DisplayName() string {
+	if s.fileBase != "" {
+		return s.fileBase
+	}
+	return fmt.Sprintf("%d_%s", s.id, s.name)
 }
 
 type rawTime []byte
@@ -48,32 +82,38 @@ type Package struct {
 	DatabaseConfiguration DatabaseOptions `json:"sql-migrator-config"`
 }
 
-func createDbConnection(options DatabaseOptions) ConnectionWithOptions {
-	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?multiStatements=true",
-		options.SqlUser,
-		options.SqlPassword,
-		options.SqlHost,
-		options.SqlPort,
-		options.SqlDatabase))
+func createDbConnection(options DatabaseOptions) (ConnectionWithOptions, error) {
+	dialect, err := resolveDialect(options.SqlDriver)
 	if err != nil {
-		log.Println(err.Error())
-		log.Fatal("Could not establish connection to the db.")
+		return ConnectionWithOptions{}, err
+	}
+
+	db, err := sql.Open(dialect.DriverName(), dialect.BuildDsn(options))
+	if err != nil {
+		return ConnectionWithOptions{}, fmt.Errorf("could not establish a connection to the db: %s", err.Error())
+	}
+
+	if err := db.Ping(); err != nil {
+		_ = db.Close()
+		return ConnectionWithOptions{}, fmt.Errorf("could not connect to %s:%s/%s: %s",
+			options.SqlHost, options.SqlPort, options.SqlDatabase, err.Error())
 	}
 
 	return ConnectionWithOptions{
 		Conn:               db,
+		Dialect:            dialect,
 		DryRun:             options.DryRun,
 		AutoByPass:         options.AutoByPass,
 		MigrationTableName: options.MigrationTableName,
-	}
+	}, nil
 }
 
-func command(dbConnectionWithOptions ConnectionWithOptions, command string) error {
+func command(dbConnectionWithOptions ConnectionWithOptions, command string, args ...interface{}) error {
 	transaction, txErr := dbConnectionWithOptions.Conn.Begin()
 	if txErr != nil {
 		return txErr
 	}
-	_, execErr := transaction.Exec(command)
+	_, execErr := transaction.Exec(command, args...)
 	if execErr != nil {
 		_ = transaction.Rollback()
 		return execErr
@@ -88,14 +128,6 @@ func command(dbConnectionWithOptions ConnectionWithOptions, command string) erro
 		return err
 	}
 	return nil
-}
-
-func query(dbConnectionWithOptions ConnectionWithOptions, query string) *sql.Rows {
-	result, err := dbConnectionWithOptions.Conn.Query(query)
-	if err != nil {
-		panic(err.Error())
-	}
-	return result
 }
 
 func (t rawTime) Parse() (time.Time, error) {

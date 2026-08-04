@@ -1,59 +1,83 @@
 package main
 
 import (
-	"github.com/bxcodec/faker/v3"
-	"log"
 	"testing"
-	"time"
 )
 
-/*
-When migrations are being executed
-*/
-func TestThatMigrationsPersistToTheDb(t *testing.T) {
-	schema, err := createRandomSchema()
-	if err != nil {
-		t.Error("Could not fake the data required.")
+func TestParseSchemaFromFileName(t *testing.T) {
+	cases := []struct {
+		fileName    string
+		expectId    int64
+		expectName  string
+		expectBase  string
+		expectError bool
+	}{
+		{"20211029162223_SomeNewMigrationFileName_up.sql", 20211029162223, "SomeNewMigrationFileName", "20211029162223_SomeNewMigrationFileName", false},
+		{"20211029162223_SomeNewMigrationFileName_down.sql", 20211029162223, "SomeNewMigrationFileName", "20211029162223_SomeNewMigrationFileName", false},
+		{"20211029162223_Some_New_Migration_File_Name_up.sql", 20211029162223, "SomeNewMigrationFileName", "20211029162223_Some_New_Migration_File_Name", false},
+		{"20211029162223_SomeNewMigrationFileName_up", 20211029162223, "SomeNewMigrationFileName", "20211029162223_SomeNewMigrationFileName", false},
+		{"NotATimestamp_Name_up.sql", 0, "", "", true},
+		{"20211029162223_MissingDirection.sql", 0, "", "", true},
+		{"readme.md", 0, "", "", true},
 	}
-	if schema.name == "" {
-		t.Fail()
+
+	for _, c := range cases {
+		result, err := parseSchemaFromFileName(c.fileName)
+		if c.expectError {
+			if err == nil {
+				t.Errorf("%s: expected an error, got none", c.fileName)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("%s: unexpected error: %s", c.fileName, err.Error())
+			continue
+		}
+		if result.id != c.expectId {
+			t.Errorf("%s: expected id %d, got %d", c.fileName, c.expectId, result.id)
+		}
+		if result.name != c.expectName {
+			t.Errorf("%s: expected name '%s', got '%s'", c.fileName, c.expectName, result.name)
+		}
+		if result.fileBase != c.expectBase {
+			t.Errorf("%s: expected fileBase '%s', got '%s'", c.fileName, c.expectBase, result.fileBase)
+		}
 	}
 }
 
-func TestThatGenerateSchemaFromFileDoesCreateSchemaFromFile(t *testing.T) {
-	testStrings := []string{
-		"20211029162223_SomeNewMigrationFileName_up",
-		"20211029162223_SomeNewMigrationFileName_down",
-		"20211029162223_Some_New_Migration_File_Name_up",
+func TestUpScriptNamePrefersStoredScriptName(t *testing.T) {
+	fromDb := Schema{id: 1, scriptName: "20250101_Stored_Name_up.sql", fileBase: "20250101_Other"}
+	if fromDb.UpScriptName() != "20250101_Stored_Name_up.sql" {
+		t.Errorf("expected the stored script_name to win, got '%s'", fromDb.UpScriptName())
 	}
 
-	for _, s := range testStrings {
-		var result = generateSchemaFromFileName(s)
-		if result.dateExecuted != time.Now() {
-			t.Error("The tests failed because the time that was set was wrong.")
-		}
-		if result.id == 0 {
-			t.Error("The id is wrong")
-		}
-		if result.name != "SomeNewMigrationFileName" {
-			t.Error("the full migration name is not included.")
-		}
-		if result.name == "" {
-			t.Error("the name should not be empty.")
-		}
+	fromDisk := Schema{id: 1, fileBase: "20250101_From_Disk"}
+	if fromDisk.UpScriptName() != "20250101_From_Disk_up.sql" {
+		t.Errorf("expected the fileBase-derived name, got '%s'", fromDisk.UpScriptName())
 	}
 }
 
-// Given Migration > When Containing Multiple Lines >
-//func ShouldRollbackWhenMigrationFails(t *testing.T) {
-//	var file = tests.GetJsonConfigFile()
-//}
+func TestFindUnexecutedMigrations(t *testing.T) {
+	files := []Schema{{id: 1}, {id: 2}, {id: 3}}
+	executed := []Schema{{id: 1}, {id: 3}}
 
-func createRandomSchema() (Schema, error) {
-	schema := Schema{}
-	err := faker.FakeData(&schema)
-	if err != nil {
-		log.Fatal("The things happened.")
+	pending := findUnexecutedMigrations(files, executed)
+
+	if len(pending) != 1 || pending[0].id != 2 {
+		t.Errorf("expected only migration 2 to be pending, got %v", pending)
 	}
-	return schema, nil
+}
+
+func TestRemoveDuplicateSchemas(t *testing.T) {
+	schemas := []Schema{{id: 1, name: "a"}, {id: 2, name: "b"}, {id: 1, name: "c"}}
+
+	unique := removeDuplicateSchemas(schemas)
+
+	if len(unique) != 2 {
+		t.Errorf("expected 2 unique schemas, got %d", len(unique))
+	}
+	// The later entry wins, matching the original behaviour.
+	if unique[0].name != "c" {
+		t.Errorf("expected the later duplicate to win, got '%s'", unique[0].name)
+	}
 }

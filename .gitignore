@@ -16,3 +16,5 @@
 .idea/
 node_modules/
 scripts/
+# Release build output
+dist/

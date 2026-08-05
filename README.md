@@ -9,7 +9,8 @@ A command-line SQL migration tool for managing database schema changes.
 - Rollback migrations to a specific point
 - MySQL/MariaDB and PostgreSQL support
 - Schema-per-tenant support on PostgreSQL (`--schema`)
-- Fan-out mode: apply migrations (or rollbacks) to every schema returned by a discovery query (`--fan-out`)
+- Fan-out mode: apply migrations (or rollbacks) to every schema returned by a discovery query (`--fan-out`), including schemas on different servers via per-schema connection strings
+- Full connection string support (`--dsn`) as an alternative to separate host/port/user fields
 - Dry-run mode for testing migrations without committing (fully transactional on PostgreSQL)
 - Auto-bypass mode for skipping problematic migrations
 - Configuration file support
@@ -248,7 +249,11 @@ For security, passwords can be provided via environment variables:
 sql-migrator sql-up --password=ENV:MY_DB_PASSWORD
 ```
 
-This will read the password from the `MY_DB_PASSWORD` environment variable. The same `ENV:` form works in the configuration file.
+This will read the password from the `MY_DB_PASSWORD` environment variable. The same `ENV:` form works in the configuration file, and for `--dsn` / `sqlDsn` — useful in CI where the whole connection string is a secret:
+
+```bash
+sql-migrator sql-up --driver=postgres --dsn=ENV:DATABASE_URL
+```
 
 ## Migration Files
 
@@ -305,6 +310,12 @@ sql-migrator sql-up --dry-run
 
 ```bash
 sql-migrator sql-up --driver=postgres --fan-out --schema-query="SELECT schema_name FROM public.tenants"
+```
+
+### Run migrations with a single connection string
+
+```bash
+sql-migrator sql-up --driver=postgres --dsn="postgres://admin:secret@db.example.com:5432/myapp" --schema=tenant_a
 ```
 
 ### Use a custom scripts directory

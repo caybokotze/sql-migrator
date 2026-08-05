@@ -81,6 +81,64 @@ func TestPostgresDsnEncodesCredentials(t *testing.T) {
 	}
 }
 
+func TestPostgresDsnOverrideKeepsItsOwnSettings(t *testing.T) {
+	dsn := postgresDialect{}.BuildDsn(DatabaseOptions{
+		SqlDsn:    "postgres://other:pw@remote-host:6543/tenant_db?sslmode=require",
+		SqlSchema: "org_remote",
+		// These must all be ignored in favour of the DSN:
+		SqlUser: "postgres", SqlPassword: "secret", SqlHost: "127.0.0.1", SqlPort: "5432", SqlDatabase: "demo",
+	})
+	if !strings.HasPrefix(dsn, "postgres://other:pw@remote-host:6543/tenant_db") {
+		t.Errorf("expected the override DSN's host/database to win: %s", dsn)
+	}
+	if !strings.Contains(dsn, "sslmode=require") {
+		t.Errorf("expected the DSN's own sslmode to be preserved: %s", dsn)
+	}
+	if !strings.Contains(dsn, "search_path%3Dorg_remote%2Cpublic") {
+		t.Errorf("expected the schema search_path to be layered onto the override DSN: %s", dsn)
+	}
+}
+
+func TestPostgresDsnOverrideGetsDefaultSslMode(t *testing.T) {
+	dsn := postgresDialect{}.BuildDsn(DatabaseOptions{
+		SqlDsn: "postgres://other:pw@remote-host:6543/tenant_db",
+	})
+	if !strings.Contains(dsn, "sslmode=disable") {
+		t.Errorf("expected the default sslmode to be applied when the DSN has none: %s", dsn)
+	}
+}
+
+func TestPostgresValidateDsn(t *testing.T) {
+	valid := []string{
+		"postgres://user:pw@host:5432/db",
+		"postgresql://user:pw@host/db?sslmode=require",
+	}
+	for _, dsn := range valid {
+		if err := (postgresDialect{}).ValidateDsn(dsn); err != nil {
+			t.Errorf("expected '%s' to be valid: %s", dsn, err.Error())
+		}
+	}
+
+	invalid := []string{
+		"host=localhost user=postgres dbname=db", // key-value form cannot be augmented
+		"mysql://user:pw@host/db",
+		"just-a-string",
+	}
+	for _, dsn := range invalid {
+		if err := (postgresDialect{}).ValidateDsn(dsn); err == nil {
+			t.Errorf("expected '%s' to be rejected", dsn)
+		}
+	}
+}
+
+func TestMysqlDsnOverridePassesThrough(t *testing.T) {
+	raw := "root:pw@tcp(remote:3307)/other?multiStatements=true"
+	dsn := mysqlDialect{}.BuildDsn(DatabaseOptions{SqlDsn: raw, SqlUser: "ignored"})
+	if dsn != raw {
+		t.Errorf("expected the mysql DSN to pass through untouched, got '%s'", dsn)
+	}
+}
+
 func TestPostgresTrackingTableShape(t *testing.T) {
 	ddl := postgresDialect{}.CreateMigrationTableSql("__migrations")
 	for _, fragment := range []string{"script_name", "applied_at", "BIGSERIAL", "UNIQUE"} {

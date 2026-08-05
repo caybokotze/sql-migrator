@@ -18,6 +18,7 @@ import (
 
 type DatabaseOptions struct {
 	SqlDriver          string `json:"sqlDriver"`
+	SqlDsn             string `json:"sqlDsn"`
 	SqlUser            string `json:"sqlUser"`
 	SqlPassword        string `json:"sqlPassword"`
 	SqlHost            string `json:"sqlHost"`

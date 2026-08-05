@@ -38,6 +38,8 @@ func initialiseParameterOptions() {
 	var (
 		driver = kingpin.Flag("driver",
 			"database driver to use: mysql (default) or postgres").Default("").String()
+		dsn = kingpin.Flag("dsn",
+			"full connection string, replaces user/password/host/port/database (postgres://... for postgres, user:pass@tcp(host:port)/db for mysql)").Default("").String()
 		user = kingpin.Flag("user",
 			"username required to connect to the database").Default("sqltracking").Short('u').String()
 		password = kingpin.Flag("password",
@@ -61,6 +63,18 @@ func initialiseParameterOptions() {
 		if *driver == "" {
 			if config.SqlDriver != "" {
 				driver = &config.SqlDriver
+			}
+		}
+		if *dsn == "" {
+			if config.SqlDsn != "" {
+				dsn = &config.SqlDsn
+			}
+		}
+		if *dsn != "" {
+			if strings.HasPrefix(*dsn, "ENV:") {
+				envVariableValue := os.Getenv(strings.SplitN(*dsn, ":", 2)[1])
+				dsn = &envVariableValue
+				fmt.Println("Using connection string from environment variable")
 			}
 		}
 		if *user == "sqltracking" {
@@ -127,6 +141,7 @@ func initialiseParameterOptions() {
 
 		options := DatabaseOptions{
 			SqlDriver:          *driver,
+			SqlDsn:             *dsn,
 			SqlUser:            *user,
 			SqlPassword:        *password,
 			SqlHost:            *host,
@@ -222,13 +237,21 @@ func doUpdate() error {
 }
 
 func checkForEmptyRequiredFields(configuration DatabaseOptions) {
-	if configuration.SqlUser == "" || configuration.SqlPassword == "" || configuration.SqlDatabase == "" {
-		color.Red.Println("You are required to provide a sql user, password and database name, either as an argument or environment variable")
-		fmt.Println(`e.g: sql-migrator sql-up --database="doggy_db" --user="doggo" --password="le-woof"`)
+	dialect, err := resolveDialect(configuration.SqlDriver)
+	if err != nil {
+		color.Red.Println(err.Error())
 		os.Exit(1)
 	}
-	if _, err := resolveDialect(configuration.SqlDriver); err != nil {
-		color.Red.Println(err.Error())
+	if configuration.SqlDsn != "" {
+		if err := dialect.ValidateDsn(configuration.SqlDsn); err != nil {
+			color.Red.Println(err.Error())
+			os.Exit(1)
+		}
+		return
+	}
+	if configuration.SqlUser == "" || configuration.SqlPassword == "" || configuration.SqlDatabase == "" {
+		color.Red.Println("You are required to provide a sql user, password and database name (or a full --dsn), either as an argument or environment variable")
+		fmt.Println(`e.g: sql-migrator sql-up --database="doggy_db" --user="doggo" --password="le-woof"`)
 		os.Exit(1)
 	}
 }

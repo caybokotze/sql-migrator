@@ -20,6 +20,9 @@ type Dialect interface {
 	DriverName() string
 	// BuildDsn builds a driver-specific connection string from the options.
 	BuildDsn(options DatabaseOptions) string
+	// ValidateDsn checks that a user-supplied DSN is in a form the dialect
+	// can work with, before any connection is attempted.
+	ValidateDsn(dsn string) error
 	// SupportsSchemas reports whether the engine has schemas as a namespace
 	// within a database (true for postgres, false for mysql where schema == database).
 	SupportsSchemas() bool
@@ -66,6 +69,11 @@ type mysqlDialect struct{}
 func (mysqlDialect) DriverName() string { return "mysql" }
 
 func (mysqlDialect) BuildDsn(options DatabaseOptions) string {
+	// A full DSN wins over the individual fields and is passed through
+	// untouched (go-sql-driver format: user:pass@tcp(host:port)/db?...).
+	if options.SqlDsn != "" {
+		return options.SqlDsn
+	}
 	return fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?multiStatements=true",
 		options.SqlUser,
 		options.SqlPassword,
@@ -73,6 +81,8 @@ func (mysqlDialect) BuildDsn(options DatabaseOptions) string {
 		options.SqlPort,
 		options.SqlDatabase)
 }
+
+func (mysqlDialect) ValidateDsn(_ string) error { return nil }
 
 func (mysqlDialect) SupportsSchemas() bool { return false }
 
@@ -143,21 +153,22 @@ type postgresDialect struct{}
 func (postgresDialect) DriverName() string { return "postgres" }
 
 func (postgresDialect) BuildDsn(options DatabaseOptions) string {
-	sslMode := options.SqlSslMode
-	if sslMode == "" {
-		sslMode = "disable"
+	// A full DSN wins over the individual fields. It is still parsed so the
+	// schema search_path (and a default sslmode) can be applied on top —
+	// validateDsn has already guaranteed it is a postgres:// URL.
+	if options.SqlDsn != "" {
+		u, err := url.Parse(options.SqlDsn)
+		if err != nil {
+			return options.SqlDsn
+		}
+		query := u.Query()
+		applyPostgresDsnDefaults(query, options)
+		u.RawQuery = query.Encode()
+		return u.String()
 	}
 
 	query := url.Values{}
-	query.Set("sslmode", sslMode)
-
-	// The search_path is part of the connection string so that every pooled
-	// connection resolves unqualified names in the target schema. A plain
-	// `SET search_path` after connecting would only apply to one connection
-	// in the pool.
-	if options.SqlSchema != "" {
-		query.Set("options", fmt.Sprintf("-csearch_path=%s,public", options.SqlSchema))
-	}
+	applyPostgresDsnDefaults(query, options)
 
 	u := url.URL{
 		Scheme:   "postgres",
@@ -167,6 +178,42 @@ func (postgresDialect) BuildDsn(options DatabaseOptions) string {
 		RawQuery: query.Encode(),
 	}
 	return u.String()
+}
+
+// applyPostgresDsnDefaults layers the tool's connection settings onto a DSN
+// query string: an sslmode when none is present, and the schema search_path.
+// The search_path is part of the connection string so that every pooled
+// connection resolves unqualified names in the target schema. A plain
+// `SET search_path` after connecting would only apply to one connection
+// in the pool.
+func applyPostgresDsnDefaults(query url.Values, options DatabaseOptions) {
+	if query.Get("sslmode") == "" {
+		sslMode := options.SqlSslMode
+		if sslMode == "" {
+			sslMode = "disable"
+		}
+		query.Set("sslmode", sslMode)
+	}
+	if options.SqlSchema != "" {
+		query.Set("options", fmt.Sprintf("-csearch_path=%s,public", options.SqlSchema))
+	}
+}
+
+// ValidateDsn requires the URL form (postgres://...) because the tool must
+// be able to parse the DSN to layer the schema search_path on top. The
+// key-value form ("host=x user=y") cannot be augmented reliably.
+func (postgresDialect) ValidateDsn(dsn string) error {
+	u, err := url.Parse(dsn)
+	if err != nil {
+		return fmt.Errorf("invalid postgres DSN: %s", err.Error())
+	}
+	if u.Scheme != "postgres" && u.Scheme != "postgresql" {
+		return fmt.Errorf("a postgres DSN must be a URL of the form postgres://user:pass@host:port/database (got scheme '%s')", u.Scheme)
+	}
+	if u.Host == "" {
+		return fmt.Errorf("a postgres DSN must contain a host")
+	}
+	return nil
 }
 
 func (postgresDialect) SupportsSchemas() bool { return true }

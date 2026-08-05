@@ -155,6 +155,22 @@ sql-migrator rollback 20250319205322 --fan-out
 - New schemas returned by the query are migrated from scratch, so provisioning a tenant is just "insert a row, run fan-out".
 - `--schema` and `--fan-out` are mutually exclusive.
 
+#### Tenants on different servers
+
+If the discovery query returns a **second column**, a non-empty value is used as the full connection string for that schema — for tenants that live on a different server or database than the registry:
+
+```json
+{
+  "sql-migrator-config": {
+    "schemaQuery": "SELECT schema_name, connection_string FROM public.tenants ORDER BY schema_name"
+  }
+}
+```
+
+- An empty or `NULL` second column falls back to the base connection; columns beyond the second are ignored.
+- The per-schema connection string must be a URL (`postgres://user:pass@host:port/database`) so the tool can layer the schema `search_path` on top. The key-value form (`host=x user=y`) is rejected before any connection is attempted, and the schema is reported as failed without stopping the others.
+- An `sslmode` inside the per-schema DSN is respected; when absent, the tool's `--ssl-mode` (default `disable`) is applied.
+
 ### Tracking table shape
 
 The two dialects track applied migrations differently:
@@ -186,6 +202,7 @@ Configuration file structure:
 {
   "sql-migrator-config": {
     "sqlDriver": "mysql | postgres",
+    "sqlDsn": "optional full connection string (replaces the five fields below)",
     "sqlUser": "username",
     "sqlPassword": "password",
     "sqlHost": "localhost",
@@ -208,6 +225,7 @@ All configuration options can be overridden via command-line flags:
 | `--configuration-file` | `migrator-config.json` | Path to configuration file |
 | `--migration-directory` | `./scripts/` | Directory containing migration files |
 | `--driver` | `mysql` | Database driver: `mysql` or `postgres` |
+| `--dsn` | (none) | Full connection string; replaces user/password/host/port/database. Supports `ENV:` |
 | `-u, --user` | `sqltracking` | Database username |
 | `-p, --password` | (none) | Database password |
 | `--host` | `localhost` | Database host |

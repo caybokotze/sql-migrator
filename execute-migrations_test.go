@@ -1,6 +1,9 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -65,6 +68,50 @@ func TestFindUnexecutedMigrations(t *testing.T) {
 
 	if len(pending) != 1 || pending[0].id != 2 {
 		t.Errorf("expected only migration 2 to be pending, got %v", pending)
+	}
+}
+
+func TestReadSchemaContentStripsUtf8Bom(t *testing.T) {
+	dir := t.TempDir()
+
+	sqlBody := "CREATE TABLE example (id INT);"
+	bomPrefixed := append([]byte{0xEF, 0xBB, 0xBF}, []byte(sqlBody)...)
+
+	fileBase := "20250319205322_ExampleMigration"
+	filePath := filepath.Join(dir, fileBase+"_up.sql")
+	if err := os.WriteFile(filePath, bomPrefixed, 0o644); err != nil {
+		t.Fatalf("could not write fixture file: %s", err.Error())
+	}
+
+	schema := Schema{id: 20250319205322, fileBase: fileBase}
+
+	content, err := readSchemaContent(schema, true, dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err.Error())
+	}
+
+	if strings.HasPrefix(content, string(rune(0xFEFF))) {
+		t.Errorf("expected the BOM to be stripped, but the content still starts with it")
+	}
+	if len(content) >= 3 && content[0] == 0xEF && content[1] == 0xBB && content[2] == 0xBF {
+		t.Errorf("expected no leading BOM bytes, got content starting with %q", content[:3])
+	}
+	if content != sqlBody {
+		t.Errorf("expected content %q, got %q", sqlBody, content)
+	}
+}
+
+func TestStripUtf8Bom(t *testing.T) {
+	withBom := append([]byte{0xEF, 0xBB, 0xBF}, []byte("SELECT 1;")...)
+	stripped := stripUtf8Bom(withBom)
+	if string(stripped) != "SELECT 1;" {
+		t.Errorf("expected BOM stripped, got %q", string(stripped))
+	}
+
+	noBom := []byte("SELECT 1;")
+	stripped = stripUtf8Bom(noBom)
+	if string(stripped) != "SELECT 1;" {
+		t.Errorf("expected no change for content without a BOM, got %q", string(stripped))
 	}
 }
 

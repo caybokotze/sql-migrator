@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"sort"
@@ -10,6 +11,16 @@ import (
 
 	"github.com/gookit/color"
 )
+
+// utf8Bom is the three-byte UTF-8 byte order mark (EF BB BF). Some editors
+// and tools write migration files with a leading BOM. Go's os.ReadFile keeps
+// it verbatim, and PostgreSQL rejects a statement that starts with one, so
+// every migration file read strips it before the content is used.
+var utf8Bom = []byte{0xEF, 0xBB, 0xBF}
+
+func stripUtf8Bom(content []byte) []byte {
+	return bytes.TrimPrefix(content, utf8Bom)
+}
 
 // runMigrations applies all pending up migrations against one target
 // (database, or one schema within it). It returns an error instead of
@@ -319,6 +330,7 @@ func readSchemaContent(schema Schema, isUp bool, migrationDirectory string) (str
 	if err != nil {
 		return "", fmt.Errorf("could not read file '%s': %s", filePath, err.Error())
 	}
+	content = stripUtf8Bom(content)
 	if len(strings.TrimSpace(string(content))) == 0 {
 		return "", fmt.Errorf("the migration file '%s' is empty", fileName)
 	}

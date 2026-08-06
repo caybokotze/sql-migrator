@@ -12,7 +12,7 @@ import (
 	"github.com/inconshreveable/go-update"
 )
 
-const version = "1.3.0"
+const version = "1.3.1"
 
 func main() {
 	initialiseParameterOptions()
